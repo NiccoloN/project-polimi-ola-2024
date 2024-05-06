@@ -63,9 +63,9 @@ class RBFGaussianProcess:
 
 
 class GPUCBAgent:
-    def __init__(self, T, discretization):
+    def __init__(self, T, discretization, minPrice, maxPrice):
         self.T = T
-        self.arms = np.linspace(0, 1, discretization)
+        self.arms = np.linspace(minPrice, maxPrice, discretization)
         self.gp = RBFGaussianProcess(scale=2).fit()
         self.a_t = None
         self.action_hist = np.array([])
@@ -93,11 +93,10 @@ class GPUCBAgent:
         if showPlot:
             mu, sigma = self.gp.predict(self.arms)
 
-            f, ax = plt.subplots(1, 2, figsize=(20, 10))
-            ax[0].plot(self.arms, mu)
-            ax[0].fill_between(discretizedPrices, mu - sigma, mu + sigma, alpha=0.3)
-            ax[0].set_title(f'Estimated Demand - {self.t + 1} samples (prior)')
-            ax[0].scatter(self.action_hist, self.reward_hist)
+            plt.plot(self.arms, mu)
+            plt.fill_between(discretizedPrices, mu - sigma, mu + sigma, alpha=0.3)
+            plt.suptitle(f'Estimated Profit - {self.t + 1} samples (prior)')
+            plt.scatter(self.action_hist, self.reward_hist)
             """
             ax[1].plot(discretizedPrices, profitMu, color='C1')
             ax[1].fill_between(discretizedPrices, profitMu - profitSigma, profitMu + profitSigma, alpha=0.3, color='C1')
@@ -112,9 +111,9 @@ def rescale(x, min_x, max_x):
 
 
 if __name__ == '__main__':
-    cost = 2
+    cost = 0.2
     minPrice = cost
-    maxPrice = 10
+    maxPrice = 1
     nCustomers = 100
     priceRange = maxPrice - minPrice
     discretization = 1000
@@ -125,7 +124,7 @@ if __name__ == '__main__':
     maximum_profit = reward_function(max(discretizedPrices), nCustomers)
 
     T = 10
-    agent = GPUCBAgent(T, discretization)
+    agent = GPUCBAgent(T, discretization, minPrice, maxPrice)
     np.random.seed(2)
     env = PricingEnvironment(conversionProbability, 0.2)
 
