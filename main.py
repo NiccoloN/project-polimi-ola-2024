@@ -97,12 +97,6 @@ class GPUCBAgent:
             plt.fill_between(discretizedPrices, mu - sigma, mu + sigma, alpha=0.3)
             plt.suptitle(f'Estimated Profit - {self.t + 1} samples (prior)')
             plt.scatter(self.action_hist, self.reward_hist)
-            """
-            ax[1].plot(discretizedPrices, profitMu, color='C1')
-            ax[1].fill_between(discretizedPrices, profitMu - profitSigma, profitMu + profitSigma, alpha=0.3, color='C1')
-            ax[1].set_title(f'Estimated Profit - {self.t + 1} samples (prior)')
-            ax[1].scatter(priceSamples, salesSamples * (priceSamples - cost))
-            """
             plt.show()
 
 
@@ -123,10 +117,12 @@ if __name__ == '__main__':
     reward_function = lambda price, n_sales: (price - cost) * n_sales
     maximum_profit = reward_function(max(discretizedPrices), nCustomers)
 
-    T = 10
+    T = 100
+    numTrials = 10
+
     agent = GPUCBAgent(T, discretization, minPrice, maxPrice)
     np.random.seed(2)
-    env = PricingEnvironment(conversionProbability, 0.2)
+    env = PricingEnvironment(conversionProbability, cost)
 
     # let's compute the clairvoyant
     profit_curve = reward_function(discretizedPrices, nCustomers * conversionProbability(discretizedPrices))
@@ -134,12 +130,31 @@ if __name__ == '__main__':
     best_price = discretizedPrices[best_price_index]
     expected_clairvoyant_rewards = np.repeat(profit_curve[best_price_index], T)
 
-    agent_rewards = np.array([])
-    for t in range(T):
-        p_t = agent.pull_arm()
-        p_t = rescale(p_t, minPrice, maxPrice)
-        d_t, r_t = env.round(p_t, nCustomers)
-        agent.update(r_t / nCustomers, True)
-        agent_rewards = np.append(agent_rewards, r_t)
+    regretPerTrial = []
+    for trial in range(numTrials):
+        agent_rewards = np.array([])
+        for t in range(T):
+            p_t = agent.pull_arm()
+            d_t, r_t = env.round(p_t, nCustomers)
+            agent.update(r_t / nCustomers, False)
+            agent_rewards = np.append(agent_rewards, r_t)
 
-    cumulative_regret = np.cumsum(expected_clairvoyant_rewards - agent_rewards)
+        regret = expected_clairvoyant_rewards - agent_rewards
+        cumulative_regret = np.cumsum(regret)
+        regretPerTrial.append(cumulative_regret)
+
+    regretPerTrial = np.array(regretPerTrial)
+    averageRegret = regretPerTrial.mean(axis=0)
+    regretStd = regretPerTrial.std(axis=0)
+
+    plt.plot(np.arange(T), averageRegret, label='Average Regret')
+    plt.title('cumulative regret of UCB1')
+    plt.fill_between(np.arange(T),
+                     averageRegret - regretStd / np.sqrt(numTrials),
+                     averageRegret + regretStd / np.sqrt(numTrials),
+                     alpha=0.3,
+                     label='Uncertainty')
+    plt.xlabel('$t$')
+    plt.legend()
+    plt.show()
+
