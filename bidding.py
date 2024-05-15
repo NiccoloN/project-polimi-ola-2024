@@ -1,76 +1,91 @@
 import numpy as np
-from matplotlib import pyplot as plt
 
 
 class Auction:
     def __init__(self, *args, **kwargs):
         pass
 
-    def get_winners(self, bids):
+    def getWinners(self, bids):
         pass
 
-    def get_payments_per_click(self, winners, values, bids):
+    def getPaymentsPerClick(self, winners, values, bids):
         pass
 
     def round(self, bids):
-        winners, values = self.get_winners(bids) # allocation mechanism!
-        payments_per_click = self.get_payments_per_click(winners, values, bids)
-        return winners, payments_per_click
+        winners, adValues = self.getWinners(bids)
+        paymentsPerClick = self.getPaymentsPerClick(winners, adValues, bids)
+        return winners, paymentsPerClick
 
 
 class SecondPriceAuction(Auction):
-    def __init__(self, ctrs):
-        self.ctrs = ctrs
-        self.n_adv = len(self.ctrs)
+    def __init__(self, clickThroughRates):
+        self.clickThroughRates = clickThroughRates
+        self.nAds = len(self.clickThroughRates)
 
-    def get_winners(self, bids):
-        adv_values = self.ctrs * bids
-        adv_ranking = np.argsort(adv_values)
-        winner = adv_ranking[-1]
-        return winner, adv_values
+    def getWinners(self, bids):
+        adValues = self.clickThroughRates * bids
+        adRanking = np.argsort(adValues)
+        winner = adRanking[-1]
+        return winner, adValues
 
-    def get_payments_per_click(self, winners, values, bids):
-        adv_ranking = np.argsort(values)
-        second = adv_ranking[-2]
-        payment = values[second] / self.ctrs[winners]
+    def getPaymentsPerClick(self, winners, values, bids):
+        adRanking = np.argsort(values)
+        second = adRanking[-2]
+        payment = values[second] / self.clickThroughRates[winners]
         return payment.round(2)
 
 
 class VCGAuction(Auction):
-    def __init__(self, ctrs, lambdas):
-        self.ctrs = ctrs
+    def __init__(self, clickThroughRates, lambdas):
+        self.clickThroughRates = clickThroughRates
         self.lambdas = lambdas
-        self.n_adv = len(self.ctrs)
-        self.n_slots = len(self.lambdas)
+        self.nAds = len(self.clickThroughRates)
+        self.nSlots = len(self.lambdas)
 
-    def get_winners(self, bids):
-        adv_values = self.ctrs * bids
-        adv_ranking = np.argsort(adv_values)
-        winners = adv_ranking[-self.n_slots:]
-        winners_values = adv_values[winners]
-        return winners, winners_values
+    def getWinners(self, bids):
+        adValues = self.clickThroughRates * bids
+        adRanking = np.argsort(adValues)
+        winners = adRanking[-self.nSlots:]
+        winnersValues = adValues[winners]
+        return winners, winnersValues
 
-    def get_payments_per_click(self, winners, values, bids):
-        payments_per_click = np.zeros(self.n_slots)
+    def getPaymentsPerClick(self, winners, values, bids):
+        paymentsPerClick = np.zeros(self.nSlots)
         for i, w in enumerate(winners):
-            Y = sum(np.delete(values, i) * self.lambdas[-self.n_slots + 1:])
+            Y = sum(np.delete(values, i) * self.lambdas[-self.nSlots + 1:])
             X = sum(np.delete(values * self.lambdas, i))
-            payments_per_click[i] = (Y - X) / (self.lambdas[i] * self.ctrs[w])
-        return payments_per_click.round(2)
+            paymentsPerClick[i] = (Y - X) / (self.lambdas[i] * self.clickThroughRates[w])
+        return paymentsPerClick.round(2)
 
 
-def get_clairvoyant_truthful(B, my_valuation, m_t, n_users):
-    utility = (my_valuation - m_t) * (my_valuation >= m_t)
-    sorted_round_utility = np.flip(np.argsort(utility))
-    clairvoyant_utilities = np.zeros(n_users)
-    clairvoyant_bids = np.zeros(n_users)
-    clairvoyant_payments = np.zeros(n_users)
+class FirstPriceAuction(Auction):
+    def __init__(self, clickThroughRates):
+        self.clickThroughRates = clickThroughRates
+        self.nAds = len(self.clickThroughRates)
+
+    def getWinners(self, bids):
+        adValues = self.clickThroughRates * bids
+        adRanking = np.argsort(adValues)
+        winner = adRanking[-1]
+        return winner, adValues
+
+    def getPaymentsPerClick(self, winners, values, bids):
+        payment = bids[winners]
+        return payment.round(2)
+
+
+def getClairvoyantTruthful(budget, myValuation, maxBids_t, nUsers):
+    utility = (myValuation - maxBids_t) * (myValuation >= maxBids_t)
+    sortedRoundUtility = np.flip(np.argsort(utility))
+    clairvoyantUtilities = np.zeros(nUsers)
+    clairvoyantBids = np.zeros(nUsers)
+    clairvoyantPayments = np.zeros(nUsers)
     c = 0
     i = 0
-    while c <= B - 1 and i < n_users:
-        clairvoyant_bids[sorted_round_utility[i]] = 1
-        clairvoyant_utilities[sorted_round_utility[i]] = utility[sorted_round_utility[i]]
-        clairvoyant_payments[sorted_round_utility[i]] = m_t[sorted_round_utility[i]]
-        c += m_t[sorted_round_utility[i]]
+    while c <= budget - 1 and i < nUsers:
+        clairvoyantBids[sortedRoundUtility[i]] = 1
+        clairvoyantUtilities[sortedRoundUtility[i]] = utility[sortedRoundUtility[i]]
+        clairvoyantPayments[sortedRoundUtility[i]] = maxBids_t[sortedRoundUtility[i]]
+        c += maxBids_t[sortedRoundUtility[i]]
         i += 1
-    return clairvoyant_bids, clairvoyant_utilities, clairvoyant_payments
+    return clairvoyantBids, clairvoyantUtilities, clairvoyantPayments

@@ -74,7 +74,7 @@ class GPUCBAgent:
         self.sigma_t = np.zeros(discretization)
         self.gamma = lambda t: np.log(t + 1) ** 2
         self.beta = lambda t: 1 + 0.5 * np.sqrt(2 * (self.gamma(t) + 1 + np.log(T)))
-        self.N_pulls = np.zeros(discretization)
+        self.nPulls = np.zeros(discretization)
         self.t = 0
 
     def pull_arm(self):
@@ -84,7 +84,7 @@ class GPUCBAgent:
         return self.arms[self.a_t]
 
     def update(self, r_t, showPlot=False):
-        self.N_pulls[self.a_t] += 1
+        self.nPulls[self.a_t] += 1
         self.action_hist = np.append(self.action_hist, self.arms[self.a_t])
         self.reward_hist = np.append(self.reward_hist, r_t)
         self.gp = self.gp.fit(self.arms[self.a_t], r_t)
@@ -110,7 +110,7 @@ class GPTSAgent:
         self.reward_hist = np.array([])
         self.mu_t = np.zeros(discretization)
         self.sigma_t = np.zeros(discretization)
-        self.N_pulls = np.zeros(discretization)
+        self.nPulls = np.zeros(discretization)
         self.t = 0
 
     def pull_arm(self):
@@ -120,7 +120,7 @@ class GPTSAgent:
         return self.arms[self.a_t]
 
     def update(self, r_t, showPlot=False):
-        self.N_pulls[self.a_t] += 1
+        self.nPulls[self.a_t] += 1
         self.action_hist = np.append(self.action_hist, self.arms[self.a_t])
         self.reward_hist = np.append(self.reward_hist, r_t)
         self.gp = self.gp.fit(self.arms[self.a_t], r_t)
