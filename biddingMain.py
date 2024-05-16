@@ -47,16 +47,16 @@ if __name__ == '__main__':
     plt.title('Bids history')
     plt.show()
 
-    plt.plot(np.cumsum(myUtilityHist), label='MP Agent utilities')
     plt.plot(np.cumsum(clairvoyantUtilities), label='Clairvoyant utilities')
+    plt.plot(np.cumsum(myUtilityHist), label='MP Agent utilities')
     plt.legend()
     plt.xlabel('$t$')
     plt.ylabel('$Cumulative utility$')
     plt.title('Utility history')
     plt.show()
 
-    plt.plot(myBudgetHist, label='MP Agent Budget')
     plt.plot(budget-np.cumsum(clairvoyantPayments), label='Clairvoyant Budget')
+    plt.plot(myBudgetHist, label='MP Agent Budget')
     plt.legend()
     plt.xlabel('$t$')
     plt.ylabel('$Budget$')
