@@ -105,31 +105,47 @@ loss_seq[:, 2] = np.random.binomial(n=1, p=0.25, size=T)
 # set up a simulation:
 learning_rate = np.sqrt(np.log(K) / T)  #  we set the learning rate as prescribed by the theory
 
-agent = HedgeAgent(K, learning_rate) # define an agent
-env = AdversarialExpertEnvironment(loss_seq) # define an environment
+## agent = HedgeAgent(K, learning_rate) # define an agent
+## env = AdversarialExpertEnvironment(loss_seq) # define an environment
+# commented out since later included in a for loop
 
 best_arm = np.argmin(loss_seq.sum(axis=0)) # obtain best arm in hindsight
 clairvoyant_losses = loss_seq[:, best_arm] # compute array of losses incurred by clairvoyant (ex [0,1,1,1,0,0])
 
 # we log to different cumulative losses for the agent
-agent_losses = np.array([]) # store agent losses
-expected_agent_losses = np.array([]) # store expected agent losses
+## agent_losses = np.array([]) # store agent losses
+## expected_agent_losses = np.array([]) # store expected agent losses
+# commented out since later included in a for loop
+
 
 # we're now differentiating two notions of regret: the regret in expectation (I observe all the losses,
 # I can compute what was the expectation, because I know which are the probabilities associated to every arm);
 # but we also compute the losses by using the actual single loss from the chosen arm (this just to show that
 # the actual from a single arm goes in expectation over multiple trials like the expected agent loss)
 
-for t in range(T):
-    a_t = agent.pull_arm()
-    l_t = env.round()
-    agent.update(l_t)
-    # logging
-    agent_losses = np.append(agent_losses, l_t[a_t])
-    expected_agent_losses = np.append(expected_agent_losses, np.dot(l_t, agent.x_t))
+all_cumulative_regret = []
+for seed in range(10):
+    agent = HedgeAgent(K, learning_rate) # after each trial use a different Hedge agent
+    env = AdversarialExpertEnvironment(loss_seq) # after each trial use a different using the SAME sequence of losses
+    agent_losses = np.array([])  # store agent losses
+    expected_agent_losses = np.array([]) # store expected agent losses
+    for t in range(T):
+        a_t = agent.pull_arm()
+        l_t = env.round()
+        agent.update(l_t)
+        # logging
+        agent_losses = np.append(agent_losses, l_t[a_t])
+        expected_agent_losses = np.append(expected_agent_losses, np.dot(l_t, agent.x_t))
+    all_cumulative_regret.append(np.cumsum(agent_losses - clairvoyant_losses))
 
-plt.plot(np.cumsum(agent_losses - clairvoyant_losses), label='Actual Loss')
-plt.plot(np.cumsum(expected_agent_losses - clairvoyant_losses), label='Expected Loss')
+plt.plot(np.array(all_cumulative_regret).mean(axis=0), label='Estimated Regret')
+plt.plot(np.cumsum(agent_losses - clairvoyant_losses), label='Actual Regret')
+# multiple trials (same environment) -> average of actual losses = expected loss
+# this probability distribution is not due to the environment, but to the agent randomization (always same sequence of losses)
+# very important: the only source of randomness is the algorithm (not evaluated environment uncertainty, just agent uncertainty)
+# note that in an expert setting, computing actual loss over multiple trials and averaging is unnecessary:
+# expected loss can be computed in closed form by multiplying the loss vector w/ the probability vector over the arms
+plt.plot(np.cumsum(expected_agent_losses - clairvoyant_losses), label='Expected Regret')
 plt.title('Cumulative Regret of Hedge in Adversarial Expert Setting')
 plt.xlabel('$t$')
 plt.legend()
@@ -146,7 +162,9 @@ print(f'Expected Total Regret {sum(expected_agent_losses) - sum(clairvoyant_loss
 # %% md
 ## **The Adversarial Bandit Setting**
 # %% md
-### In Bandit Settings, the agent chooses one arm and can only observe the loss associated to that single arm. Thus, the feedback received from the environment is limited. This problem is intrinsically harder than the expert setting, due to the more limited information available.
+### In Bandit Settings, the agent chooses one arm and can only observe the loss associated to that single arm.
+# Thus, the feedback received from the environment is limited. This problem is intrinsically harder than the
+# expert setting, due to the more limited information available.
 # %%
 class AdversarialBanditEnvironment:
     def __init__(self, loss_sequence):
@@ -180,6 +198,8 @@ print(f'Best achievable cumulative loss when always pulling the same arm: {loss_
 ### However, the problem is now harder, since we can only observe the feedback associated to the arm we choose. Thus, we need to deal with the exploration-exploitation trade-off.
 # %% md
 ## **Extending Hedge to a Bandit Setting: the EXP3 Algorithm**
+# in Hedge each action was penalized only based on the loss obtained from that action, here I'm dividing
+# the loss by the probability of choosing that action (see theory) -> more penalization for bad arms
 # %%
 class EXP3Agent:
     def __init__(self, K, learning_rate):
@@ -235,9 +255,10 @@ for t in range(T):
                                       np.dot(agent.x_t,
                                              env.loss_sequence[t - 1, :]))
 
-plt.plot(np.cumsum(agent_losses - clairvoyant_losses), label='Actual Loss')
-plt.plot(np.cumsum(expected_agent_losses - clairvoyant_losses), label='Expected Loss')
-plt.title('Cumulative Regret of Hedge in Bandit Setting')
+plt.plot(np.cumsum(agent_losses - clairvoyant_losses), label='Actual Regret')
+plt.plot(np.cumsum(expected_agent_losses - clairvoyant_losses), label='Expected Regret')
+# the expected regret is unknown to the algorithm (can be computed in close form w/ sequence of losses)
+plt.title('Cumulative Regret of EXP3 in Bandit Setting')
 plt.xlabel('$t$')
 plt.legend()
 plt.show()
@@ -263,7 +284,7 @@ n_trials = 20
 
 exp3_regret_per_trial = []
 # we keep the loss sequence fixed, we will only observe uncertainty due to algorithm's randomizations
-for trial in range(n_trials):
+for trial in range(n_trials): # as for Hedge, multiple trials just to estimate the uncertainty
     agent = EXP3Agent(K, learning_rate)
     env = AdversarialBanditEnvironment(loss_seq)
 
@@ -286,7 +307,7 @@ exp3_average_regret = exp3_regret_per_trial.mean(axis=0)
 exp3_regret_sd = exp3_regret_per_trial.std(axis=0)
 
 plt.plot(np.arange(T), exp3_average_regret, label='EXP3')
-plt.title('Cumulative Regret of EXP3')
+plt.title('Cumulative Regret of EXP3') # same line as "expected regret" from previous plot
 plt.fill_between(np.arange(T),
                  exp3_average_regret - exp3_regret_sd / np.sqrt(n_trials),
                  exp3_average_regret + exp3_regret_sd / np.sqrt(n_trials),
