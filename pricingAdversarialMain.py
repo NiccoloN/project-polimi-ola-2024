@@ -14,6 +14,25 @@ def testAgent(agent, T, seed, expectedClairvoyantRewards):
 
 
 if __name__ == '__main__':
+    numRounds = 1000
+    numPrices = 500
+    env = NonStationaryBernoulliEnvironment(numPrices, numRounds, 4, 1, True)
+
+    # Best policy in Hindsight:
+    best_rewards = np.array(env.mu).max(axis=0)  # we take the max over every single round
+    best_cum_rew = sum(best_rewards)
+    best_policy = np.array(env.mu).argmax(axis=0)
+    print(f'Best possible cumulative reward: {best_cum_rew}')  # is higher than the cumulative reward of the best arm in hindsight
+
+    t = np.arange(numRounds)
+    for i in range(numPrices):
+        plt.plot(t, env.mu[i], label=f'$\mu_{i}$')
+    plt.plot(t, best_rewards, label=f'$\mu^*$')
+
+    plt.legend()
+    plt.xlabel('$t$')
+    plt.show()
+
     cost = 0.2
     minPrice = cost
     maxPrice = 1

@@ -47,7 +47,7 @@ class MultiplicativePacingAgent:
         self.t = 0
         self.totWins = 0
         self.bidHist = np.array([])
-        self.utilitityHist = np.array([])
+        self.utilityHist = np.array([])
         self.budgetHist = np.array([])
 
     def bid(self):
@@ -62,14 +62,14 @@ class MultiplicativePacingAgent:
                             a_min=0, a_max=1 / self.rho)
         self.budget -= cost
         self.totWins += win
-        self.utilitityHist = np.append(self.utilitityHist, utility)
+        self.utilityHist = np.append(self.utilityHist, utility)
         self.budgetHist = np.append(self.budgetHist, self.budget)
 
     def returnHistory(self):
-        return self.totWins, self.bidHist, self.utilitityHist, self.budgetHist
+        return self.totWins, self.bidHist, self.utilityHist, self.budgetHist
 
     def plotHistory(self):
-        plt.plot(np.cumsum(self.utilitityHist))
+        plt.plot(np.cumsum(self.utilityHist))
         plt.xlabel('$t$')
         plt.ylabel('$Cumulative utility$')
         plt.title('Utility history')
@@ -121,7 +121,68 @@ class FirstPriceAuction(Auction):
         return payment.round(2)
 
 
-def getDeterministicClairvoyant(budget, myValuation, maxBids, nRounds):
+class UCBAgent:
+    def __init__(self, budget, possibleBids, nRounds):
+        self.budget = budget
+        self.budgetPerRound = budget / nRounds
+        self.possibleBids = possibleBids
+        self.maxRounds = nRounds
+        self.t = 1
+        self.utilityUCBs = np.repeat(np.inf, len(possibleBids))
+        self.costLCBs = np.repeat(0, len(possibleBids))
+        self.totWins = 0
+        self.bidHist = np.array([])
+        self.bidIndHist = np.array([])
+        self.utilityHist = np.array([])
+        self.costHist = np.array([])
+        self.budgetHist = np.array([])
+
+    def bid(self):
+        if self.budget < 1:
+            return 0
+        possibleBidInds = np.where(self.costLCBs <= self.budgetPerRound)[0]
+        bidInd = np.argmax(self.utilityUCBs[possibleBidInds])
+        self.bidIndHist = np.append(self.bidIndHist, bidInd)
+        bid = self.possibleBids[bidInd]
+        self.bidHist = np.append(self.bidHist, bid)
+        return bid
+
+    def update(self, win, utility, cost):
+        self.budget -= cost
+        self.budgetPerRound = self.budget / (self.maxRounds - self.t)
+        self.totWins += win
+        self.utilityHist = np.append(self.utilityHist, utility)
+        self.costHist = np.append(self.costHist, cost)
+        self.budgetHist = np.append(self.budgetHist, self.budget)
+
+        for bidInd in range(0, len(self.possibleBids)):
+            roundsWithBid = np.where(self.bidIndHist == bidInd)[0]
+            if len(roundsWithBid) > 0:
+                averageBidUtility = np.mean(self.utilityHist[roundsWithBid])
+                averageBidCost = np.mean(self.costHist[roundsWithBid])
+                self.utilityUCBs[bidInd] = averageBidUtility + np.sqrt(2 * np.log(self.maxRounds) / len(self.utilityHist[roundsWithBid]))
+                self.costLCBs[bidInd] = np.clip(averageBidCost - np.sqrt(2 * np.log(self.maxRounds) / len(self.costHist[roundsWithBid])), 0, np.inf)
+
+        self.t += 1
+
+    def returnHistory(self):
+        return self.totWins, self.bidHist, self.utilityHist, self.budgetHist
+
+    def plotHistory(self):
+        plt.plot(np.cumsum(self.utilityHist))
+        plt.xlabel('$t$')
+        plt.ylabel('$Cumulative utility$')
+        plt.title('Utility history')
+        plt.show()
+
+        plt.plot(self.budgetHist)
+        plt.xlabel('$t$')
+        plt.ylabel('$Budget$')
+        plt.title('Budget history')
+        plt.show()
+
+
+def getTruthfulClairvoyant(budget, myValuation, maxBids, nRounds):
     utility = (myValuation - maxBids) * (myValuation >= maxBids)
     sortedRoundUtility = np.flip(np.argsort(utility))
     clairvoyantUtilities = np.zeros(nRounds)

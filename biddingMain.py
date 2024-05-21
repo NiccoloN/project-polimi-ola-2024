@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-
 from bidding import *
 
 if __name__ == '__main__':
@@ -19,13 +17,18 @@ if __name__ == '__main__':
     highestBids = otherBids.max(axis=0)
 
     # Clairvoyant agent
-    clairvoyantBidding, clairvoyantUtilities, clairvoyantPayments = getDeterministicClairvoyant(budget, myValuation, highestBids, nRounds)
+    clairvoyantBidding, clairvoyantUtilities, clairvoyantPayments = getTruthfulClairvoyant(budget, myValuation, highestBids, nRounds)
 
     # Multiplicative pacing agent
     mpAgent = MultiplicativePacingAgent(myValuation, budget, nRounds)
 
+    # UCB like agent
+    ucbAgent = UCBAgent(budget, np.arange(minBid, maxBid, minBid), nRounds)
+
     # Start the auction
     auction = SecondPriceAuction(clickThroughRates)
+
+    # Auction for MP agent
     for aucInd in range(nRounds):
         myBid = mpAgent.bid()
         bids_t = np.append(myBid, otherBids[:, aucInd].ravel())
@@ -35,12 +38,24 @@ if __name__ == '__main__':
         myPayment = highestBids[aucInd] * myWin
         mpAgent.update(myWin, myUtility, myPayment)
 
-    myWins, myBidHist, myUtilityHist, myBudgetHist = mpAgent.returnHistory()
+    auction = FirstPriceAuction(clickThroughRates)
+    # Auction for UCB agent
+    for aucInd in range(nRounds):
+        myBid = ucbAgent.bid()
+        bids_t = np.append(myBid, otherBids[:, aucInd].ravel())
+        winner_t, payment_t = auction.round(bids_t)
+        myWin = int(winner_t == 0)
+        myUtility = (myValuation - myBid) * myWin
+        myPayment = myBid * myWin
+        ucbAgent.update(myWin, myUtility, myPayment)
+
+    mpWins, mpBidHist, mpUtilityHist, mpBudgetHist = mpAgent.returnHistory()
+    ucbWins, ucbBidHist, ucbUtilityHist, ucbBudgetHist = ucbAgent.returnHistory()
 
     # Plots
     plt.plot(highestBids, label="Other Bids")
-    plt.plot(myBidHist, label="MP Agent Bids")
-    # plt.plot(clairvoyantPayments+minBid, label="Clairvoyant bids")
+    plt.plot(mpBidHist, label="MP Agent Bids")
+    plt.plot(ucbBidHist, label="UCB Agent Bids")
     plt.legend()
     plt.xlabel('$t$')
     plt.ylabel('$Bids$')
@@ -48,7 +63,8 @@ if __name__ == '__main__':
     plt.show()
 
     plt.plot(np.cumsum(clairvoyantUtilities), label='Clairvoyant utilities')
-    plt.plot(np.cumsum(myUtilityHist), label='MP Agent utilities')
+    plt.plot(np.cumsum(mpUtilityHist), label='MP Agent utilities')
+    plt.plot(np.cumsum(ucbUtilityHist), label='UCB Agent utilities')
     plt.legend()
     plt.xlabel('$t$')
     plt.ylabel('$Cumulative utility$')
@@ -56,16 +72,18 @@ if __name__ == '__main__':
     plt.show()
 
     plt.plot(budget-np.cumsum(clairvoyantPayments), label='Clairvoyant Budget')
-    plt.plot(myBudgetHist, label='MP Agent Budget')
+    plt.plot(mpBudgetHist, label='MP Agent Budget')
+    plt.plot(ucbBudgetHist, label='UCB Agent Budget')
     plt.legend()
     plt.xlabel('$t$')
     plt.ylabel('$Budget$')
     plt.title('Budget history')
     plt.show()
 
-    plt.plot(np.cumsum(clairvoyantUtilities-myUtilityHist), label='MP Agent Regret')
+    plt.plot(np.cumsum(clairvoyantUtilities - mpUtilityHist), label='MP Agent Regret')
+    plt.plot(np.cumsum(clairvoyantUtilities - ucbUtilityHist), label='UCB Agent Regret')
+    plt.legend()
     plt.xlabel('$t$')
     plt.ylabel('Regret')
-    plt.title('Cumulative regret of MP Agent')
+    plt.title('Cumulative regret')
     plt.show()
-

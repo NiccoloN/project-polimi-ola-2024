@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 
-class PricingEnvironment:
+class StochasticEnvironment:
     def __init__(self, conversionProbability, cost):
         self.conversionProbability = conversionProbability
         self.cost = cost
@@ -11,6 +11,51 @@ class PricingEnvironment:
         nSales_t = np.random.binomial(nCustomers_t, self.conversionProbability(price_t))
         profit_t = (price_t - self.cost) * nSales_t
         return nSales_t, profit_t
+
+
+def generateRewardMeans(numPrices, T, numChanges, plot):
+    mu = np.zeros((numPrices, T))
+
+    changePoints = np.random.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
+    changePoints = changePoints * np.arange(numChanges)
+    sortedChangePoints = np.sort(changePoints)
+    changesLength = np.diff(np.insert(np.append(sortedChangePoints, T), 0, 0))
+
+    means = np.zeros((numPrices, numChanges + 1))
+    std = 2 / numPrices
+    for i in range(numPrices):
+        if i == 0:
+            means[i, :] = np.clip(np.random.normal(1, 10 * std, numChanges + 1), 0, 1)
+        else:
+            for j in range(numChanges + 1):
+                prevMean = means[i - 1, j]
+                means[i, j] = np.clip(np.random.normal(prevMean, std), 0, prevMean)
+
+        mu[i, :] = np.repeat(means[i, :], changesLength)
+
+    if plot:
+        t = np.arange(T)
+        for i in range(numPrices):
+            plt.plot(t, mu[i, :], label=f'$\mu_{i}$')
+        plt.legend()
+        plt.xlabel('$t$')
+        plt.show()
+
+    return mu
+
+
+class NonStationaryBernoulliEnvironment:
+    def __init__(self, numPrices, T, numChanges, seed, plot):
+        np.random.seed(seed)
+        self.mu = generateRewardMeans(numPrices, T, numChanges, plot)
+        self.rewards = np.random.binomial(n=1, p=self.mu.T)
+        self.K = self.rewards.shape[1]
+        self.t = 0
+
+    def round(self, a_t):
+        r_t = self.rewards[self.t, a_t]
+        self.t +=1
+        return r_t
 
 
 class RBFGaussianProcess:
