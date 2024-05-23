@@ -179,6 +179,7 @@ class GPTSAgent:
             plt.suptitle(f'Estimated Profit - {self.t + 1} samples')
             plt.scatter(self.action_hist, self.reward_hist)
             plt.show()
+     self.t += 1
 
 
 class ClairvoyantAgent:
