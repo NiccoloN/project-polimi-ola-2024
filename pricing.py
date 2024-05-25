@@ -1,3 +1,5 @@
+import math
+import random
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -13,48 +15,60 @@ class StochasticEnvironment:
         return nSales_t, profit_t
 
 
-def generateRewardMeans(numPrices, T, numChanges, plot):
-    mu = np.zeros((numPrices, T))
+def generateRandomDemandCurve(minPrice, maxPrice, numPrices):
+    curve = np.zeros(numPrices)
+    start = 0
+    factor1 = random.choice([15, 20, 25, 30])
+    factor2 = random.choice([5, 10, 15])
+    for i in range(0, numPrices):
+        start += math.log(random.random()) / factor1 / (numPrices - i) * factor2
+        curve[i] = math.exp(start) * (maxPrice - minPrice) + minPrice
 
+    curve = curve - np.min(curve)
+    curve = curve / np.max(curve)
+    return curve
+
+
+def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot):
     changePoints = np.random.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
     changePoints = changePoints * np.arange(numChanges)
     sortedChangePoints = np.sort(changePoints)
-    changesLength = np.diff(np.insert(np.append(sortedChangePoints, T), 0, 0))
 
-    means = np.zeros((numPrices, numChanges + 1))
-    std = 2 / numPrices
-    for i in range(numPrices):
-        if i == 0:
-            means[i, :] = np.clip(np.random.normal(1, 10 * std, numChanges + 1), 0, 1)
-        else:
-            for j in range(numChanges + 1):
-                prevMean = means[i - 1, j]
-                means[i, j] = np.clip(np.random.normal(prevMean, std), 0, prevMean)
-
-        mu[i, :] = np.repeat(means[i, :], changesLength)
+    mu = np.zeros((T, numPrices))
+    changePoint = 0
+    demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
 
     if plot:
-        t = np.arange(T)
-        for i in range(numPrices):
-            plt.plot(t, mu[i, :], label=f'$\mu_{i}$')
-        plt.legend()
-        plt.xlabel('$t$')
+        plt.plot(demandCurve)
+        plt.ylim((0, maxPrice))
         plt.show()
+
+    for i in range(T):
+        if i > sortedChangePoints[0]:
+            changePoint = changePoints[0]
+            changePoints = np.delete(changePoints, 0)
+            demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
+            if plot:
+                plt.plot(demandCurve)
+                plt.ylim((0, maxPrice))
+                plt.show()
+
+        mu[i, :] = demandCurve
 
     return mu
 
 
 class NonStationaryBernoulliEnvironment:
-    def __init__(self, numPrices, T, numChanges, seed, plot):
+    def __init__(self, minPrice, maxPrice, numPrices, numChanges, T, seed, plot):
         np.random.seed(seed)
-        self.mu = generateRewardMeans(numPrices, T, numChanges, plot)
-        self.rewards = np.random.binomial(n=1, p=self.mu.T)
+        self.mu = generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot)
+        self.rewards = np.random.binomial(n=1, p=self.mu)
         self.K = self.rewards.shape[1]
         self.t = 0
 
     def round(self, a_t):
         r_t = self.rewards[self.t, a_t]
-        self.t +=1
+        self.t += 1
         return r_t
 
 
@@ -179,7 +193,6 @@ class GPTSAgent:
             plt.suptitle(f'Estimated Profit - {self.t + 1} samples')
             plt.scatter(self.action_hist, self.reward_hist)
             plt.show()
-     self.t += 1
 
 
 class ClairvoyantAgent:

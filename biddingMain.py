@@ -5,7 +5,7 @@ if __name__ == '__main__':
     nAdvertisers = 4
     clickThroughRates = np.ones(nAdvertisers)
     myValuation = 0.8
-    budget = 100
+    budget = 350
     nRounds = 1000
     minBid = 0.01
     maxBid = 1
@@ -38,10 +38,11 @@ if __name__ == '__main__':
         myPayment = highestBids[aucInd] * myWin
         mpAgent.update(myWin, myUtility, myPayment)
 
-    auction = FirstPriceAuction(clickThroughRates)
+    # auction = FirstPriceAuction(clickThroughRates)
     # Auction for UCB agent
     for aucInd in range(nRounds):
         myBid = ucbAgent.bid()
+        #otherBids[:, aucInd] = 0.5
         bids_t = np.append(myBid, otherBids[:, aucInd].ravel())
         winner_t, payment_t = auction.round(bids_t)
         myWin = int(winner_t == 0)
@@ -87,3 +88,4 @@ if __name__ == '__main__':
     plt.ylabel('Regret')
     plt.title('Cumulative regret')
     plt.show()
+    c = 0

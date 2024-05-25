@@ -1,5 +1,7 @@
+import sys
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy import optimize
 
 
 class Auction:
@@ -122,46 +124,58 @@ class FirstPriceAuction(Auction):
 
 
 class UCBAgent:
-    def __init__(self, budget, possibleBids, nRounds):
+    def __init__(self, budget, bids, T):
         self.budget = budget
-        self.budgetPerRound = budget / nRounds
-        self.possibleBids = possibleBids
-        self.maxRounds = nRounds
+        self.budgetPerRound = budget / T
+        self.bids = bids
+        self.bidIndices = np.arange(len(bids))
+        self.maxBid = max(bids)
+        self.T = T
         self.t = 1
-        self.utilityUCBs = np.repeat(np.inf, len(possibleBids))
-        self.costLCBs = np.repeat(0, len(possibleBids))
+        self.utilityUCBs = np.repeat(sys.float_info.max, len(self.bids))
+        self.costLCBs = np.repeat(0, len(bids))
+        self.gamma = np.repeat(1 / len(bids), len(bids))
         self.totWins = 0
         self.bidHist = np.array([])
-        self.bidIndHist = np.array([])
+        self.bidIndHist = np.array([], int)
         self.utilityHist = np.array([])
         self.costHist = np.array([])
         self.budgetHist = np.array([])
 
     def bid(self):
-        if self.budget < 1:
+        if self.budget < self.maxBid:
             return 0
-        possibleBidInds = np.where(self.costLCBs <= self.budgetPerRound)[0]
-        bidInd = np.argmax(self.utilityUCBs[possibleBidInds])
+
+        bidInd = np.random.choice(a=self.bidIndices, p=self.gamma)
         self.bidIndHist = np.append(self.bidIndHist, bidInd)
-        bid = self.possibleBids[bidInd]
+        bid = self.bids[bidInd]
         self.bidHist = np.append(self.bidHist, bid)
         return bid
 
     def update(self, win, utility, cost):
         self.budget -= cost
-        self.budgetPerRound = self.budget / (self.maxRounds - self.t)
+        if self.t < self.T:
+            self.budgetPerRound = self.budget / (self.T - self.t)
         self.totWins += win
         self.utilityHist = np.append(self.utilityHist, utility)
         self.costHist = np.append(self.costHist, cost)
         self.budgetHist = np.append(self.budgetHist, self.budget)
 
-        for bidInd in range(0, len(self.possibleBids)):
+        for bidInd in self.bidIndices:
             roundsWithBid = np.where(self.bidIndHist == bidInd)[0]
             if len(roundsWithBid) > 0:
                 averageBidUtility = np.mean(self.utilityHist[roundsWithBid])
                 averageBidCost = np.mean(self.costHist[roundsWithBid])
-                self.utilityUCBs[bidInd] = averageBidUtility + np.sqrt(2 * np.log(self.maxRounds) / len(self.utilityHist[roundsWithBid]))
-                self.costLCBs[bidInd] = np.clip(averageBidCost - np.sqrt(2 * np.log(self.maxRounds) / len(self.costHist[roundsWithBid])), 0, np.inf)
+                self.utilityUCBs[bidInd] = averageBidUtility + np.sqrt(2 * np.log(self.T) / len(self.utilityHist[roundsWithBid]))
+                self.costLCBs[bidInd] = averageBidCost - np.sqrt(2 * np.log(self.T) / len(self.costHist[roundsWithBid]))
+
+        c = -self.utilityUCBs
+        A_ub = self.costLCBs * np.ones((1, len(self.bids)))
+        b_ub = self.budgetPerRound
+        A_eq = np.ones((1, len(self.bids)))
+        b_eq = [1]
+        res = optimize.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=(0, 1))
+        self.gamma = res.x.T
 
         self.t += 1
 
