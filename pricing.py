@@ -132,9 +132,9 @@ class GPUCBAgent:
         self.mu_t = np.zeros(discretization)
         self.sigma_t = np.zeros(discretization)
         self.gamma = lambda t: np.log(t + 1) ** 2
-        self.beta = lambda t: 1 + 0.5 * np.sqrt(2 * (self.gamma(t) + 1 + np.log(T)))
+        self.beta = lambda t: 1 + 0.5 * np.sqrt(2 * (self.gamma(t) + 1 + np.log(t)))
         self.nPulls = np.zeros(discretization)
-        self.t = 0
+        self.t = 1
 
     def pull_arm(self):
         self.mu_t, self.sigma_t = self.gp.predict(self.arms)

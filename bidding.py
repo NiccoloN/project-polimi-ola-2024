@@ -45,7 +45,7 @@ class MultiplicativePacingAgent:
         self.eta = 1/np.sqrt(nRounds)
         self.maxRounds = nRounds
         self.rho = self.budget / self.maxRounds
-        self.lmbd = 1
+        self.lmbd = 0
         self.t = 0
         self.totWins = 0
         self.bidHist = np.array([])
@@ -124,7 +124,7 @@ class FirstPriceAuction(Auction):
 
 
 class UCBAgent:
-    def __init__(self, budget, bids, T):
+    def __init__(self, budget, bids, T, scaleFactor):
         self.budget = budget
         self.budgetPerRound = budget / T
         self.bids = bids
@@ -132,6 +132,7 @@ class UCBAgent:
         self.maxBid = max(bids)
         self.T = T
         self.t = 1
+        self.scaleFactor = scaleFactor
         self.utilityUCBs = np.repeat(sys.float_info.max, len(self.bids))
         self.costLCBs = np.repeat(0, len(bids))
         self.gamma = np.repeat(1 / len(bids), len(bids))
@@ -141,6 +142,7 @@ class UCBAgent:
         self.utilityHist = np.array([])
         self.costHist = np.array([])
         self.budgetHist = np.array([])
+        self.winningBidHist = np.array([])
 
     def bid(self):
         if self.budget < self.maxBid:
@@ -152,22 +154,21 @@ class UCBAgent:
         self.bidHist = np.append(self.bidHist, bid)
         return bid
 
-    def update(self, win, utility, cost):
+    def update(self, win, utility, cost, winningBid):
         self.budget -= cost
-        if self.t < self.T:
-            self.budgetPerRound = self.budget / (self.T - self.t)
         self.totWins += win
         self.utilityHist = np.append(self.utilityHist, utility)
         self.costHist = np.append(self.costHist, cost)
         self.budgetHist = np.append(self.budgetHist, self.budget)
+        self.winningBidHist = np.append(self.winningBidHist, winningBid)
 
         for bidInd in self.bidIndices:
             roundsWithBid = np.where(self.bidIndHist == bidInd)[0]
             if len(roundsWithBid) > 0:
                 averageBidUtility = np.mean(self.utilityHist[roundsWithBid])
                 averageBidCost = np.mean(self.costHist[roundsWithBid])
-                self.utilityUCBs[bidInd] = averageBidUtility + np.sqrt(2 * np.log(self.T) / len(self.utilityHist[roundsWithBid]))
-                self.costLCBs[bidInd] = averageBidCost - np.sqrt(2 * np.log(self.T) / len(self.costHist[roundsWithBid]))
+                self.utilityUCBs[bidInd] = averageBidUtility + self.scaleFactor * np.sqrt(2 * np.log(self.t) / len(self.utilityHist[roundsWithBid]))
+                self.costLCBs[bidInd] = np.clip(averageBidCost - self.scaleFactor * np.sqrt(2 * np.log(self.t) / len(self.costHist[roundsWithBid])), 0, np.inf)
 
         c = -self.utilityUCBs
         A_ub = self.costLCBs * np.ones((1, len(self.bids)))
