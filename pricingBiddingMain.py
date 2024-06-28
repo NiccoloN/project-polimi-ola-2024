@@ -8,11 +8,15 @@ def testAgent(agent, T, seed):
     nCustomersArray = []
     for t in range(T):
         price_t = agent.pull_arm()
+        print("price at day " + str(t) + ": " + str(price_t))
         valuation_t = price_t * conversionProbability(price_t)
-        nCustomers_t = bidding(valuation_t, 1000, 1, 200, True)
+        nCustomers_t = bidding(valuation_t, 1000, 1, 200, False)
         nCustomersArray.append(nCustomers_t)
         demand_t, reward_t = env.round(price_t, nCustomers_t)
-        agent.update(reward_t / nCustomers_t, False)
+        if nCustomers_t == 0:
+            agent.update(0, False)
+        else:
+            agent.update(reward_t / nCustomers_t, False)
         agentRewards[t] = reward_t
 
     # clairvoyant
