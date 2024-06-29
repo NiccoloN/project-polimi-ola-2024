@@ -3,10 +3,8 @@ import numpy as np
 from bidding import *
 
 
-def bidding(myValuation, T, numTrials, budget, showPlots):
-
-
-    np.random.seed(0)
+def bidding(myValuation, othersValuation, T, numTrials, budget, showPlots, seed):
+    np.random.seed(seed)
 
     # Auction settings
     nAdvertisers = 4
@@ -16,9 +14,6 @@ def bidding(myValuation, T, numTrials, budget, showPlots):
     bids = np.arange(minBid, myValuation, minBid)
 
     if len(bids) > 0:
-
-        # Competitors
-        othersValuation = 0.6
         # if I use a really low mean bid for the competitor, the MPAgent performs better than the clairvoyant for most of the time!
         otherBids = np.clip(np.random.normal(othersValuation, 0.1, size=(nAdvertisers - 1, T)), minBid, maxBid)
         highestBids = otherBids.max(axis=0)
@@ -26,9 +21,7 @@ def bidding(myValuation, T, numTrials, budget, showPlots):
         highestBidsStd = np.std(highestBids)
 
         # Clairvoyant agent
-        clairvoyantBidding, clairvoyantUtilities, clairvoyantPayments = getTruthfulClairvoyant(budget, myValuation,
-                                                                                               highestBids, T)
-
+        clairvoyantBidding, clairvoyantUtilities, clairvoyantPayments = getTruthfulClairvoyant(budget, myValuation, highestBids, T)
         # Start the auction
         auction = SecondPriceAuction(clickThroughRates)
 
@@ -90,16 +83,15 @@ def bidding(myValuation, T, numTrials, budget, showPlots):
 
         # Plots
         if showPlots:
-            plt.plot(np.cumsum(clairvoyantUtilities), label='Clairvoyant utilities')
             plt.plot(np.cumsum(mpUtilityHistArray.mean(0)), label='MP Agent utilities')
             plt.plot(np.cumsum(ucbUtilityHistArray.mean(0)), label='UCB Agent utilities')
+            plt.plot(np.cumsum(clairvoyantUtilities), label='Clairvoyant utilities')
             plt.legend()
             plt.xlabel('$t$')
             plt.ylabel('$Cumulative utility$')
             plt.title('Utility history')
             plt.show()
 
-            plt.plot(budget - np.cumsum(clairvoyantPayments), label='Clairvoyant Budget')
             plt.plot(mpBudgetHistArray.mean(0), label='MP Agent Budget')
             plt.plot(ucbBudgetHistArray.mean(0), label='UCB Agent Budget')
             plt.legend()
@@ -123,4 +115,4 @@ def bidding(myValuation, T, numTrials, budget, showPlots):
 
 
 if __name__ == '__main__':
-    bidding(0.8, 1000, 10, 200, True)
+    bidding(0.8, 0.6, 1000, 10, 200, True, 0)

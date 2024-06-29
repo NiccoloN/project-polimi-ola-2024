@@ -1,27 +1,27 @@
+import numpy as np
+
 from pricing import *
-from biddingMain import *
+from Req1.biddingMain import *
 
 def testAgent(agent, T, seed):
     np.random.seed(seed)
     agentRewards = np.zeros(T)
 
-    nCustomersArray = []
     for t in range(T):
         price_t = agent.pull_arm()
         print("price at day " + str(t) + ": " + str(price_t))
-        valuation_t = price_t * conversionProbability(price_t)
-        nCustomers_t = bidding(valuation_t, 1000, 1, 200, False)
-        nCustomersArray.append(nCustomers_t)
+        valuation_t = np.clip(agent.getEstimatedRewardMean()[np.where(discretizedPrices == price_t)], 0, price_t)
+        nCustomers_t = bidding(valuation_t, 0.1, 1000, 1, 50, False, t)
         demand_t, reward_t = env.round(price_t, nCustomers_t)
-        if nCustomers_t == 0:
+        if nCustomers_t == 0 or demand_t == 0:
             agent.update(0, False)
+            agentRewards[t] = 0
         else:
             agent.update(reward_t / nCustomers_t, False)
-        agentRewards[t] = reward_t
+            agentRewards[t] = reward_t / nCustomers_t
 
     # clairvoyant
-    best_price_index = np.argmax(reward_function(discretizedPrices, conversionProbability(discretizedPrices)))
-    expectedClairvoyantRewards = nCustomersArray * discretizedPrices[best_price_index]
+    expectedClairvoyantRewards = np.max(reward_function(discretizedPrices, conversionProbability(discretizedPrices)))
 
     return np.cumsum(expectedClairvoyantRewards - agentRewards)
 
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     conversionProbability = lambda p: 1 - p / maxPrice
     reward_function = lambda price, n_sales: (price - cost) * n_sales
 
-    T = 100
+    T = 10
     numTrials = 1
     env = StochasticEnvironment(conversionProbability, cost)
 
@@ -46,21 +46,21 @@ if __name__ == '__main__':
 
     ucbRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
+        print("GPUCB agent, trial " + str(trial + 1))
         ucbAgent = GPUCBAgent(T, discretization, minPrice, maxPrice)
         ucbRegretPerTrial[trial, :] = testAgent(ucbAgent, T, trial)
-        print("ucb " + str(trial + 1))
 
     tsRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
+        print("GPTS agent, trial " + str(trial + 1))
         tsAgent = GPTSAgent(T, discretization, minPrice, maxPrice)
         tsRegretPerTrial[trial, :] = testAgent(tsAgent, T, trial)
-        print("ts " + str(trial + 1))
 
     clairvoyantRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
-        clairvoyantAgent = ClairvoyantAgent(best_price)
+        print("clairvoyant agent, trial " + str(trial + 1))
+        clairvoyantAgent = ClairvoyantAgent(best_price, discretizedPrices, conversionProbability)
         clairvoyantRegretPerTrial[trial, :] = testAgent(clairvoyantAgent, T, trial)
-        print("clairvoyant " + str(trial + 1))
 
     ucbAverageRegret = ucbRegretPerTrial.mean(axis=0)
     ucbRegretStd = ucbRegretPerTrial.std(axis=0)

@@ -7,7 +7,7 @@ def testAgent(agent, T, seed, expectedClairvoyantRewards):
     for t in range(T):
         price_t = agent.pull_arm()
         demand_t, reward_t = env.round(price_t, nCustomers)
-        agent.update(reward_t / nCustomers, False)
+        agent.update(reward_t / nCustomers, True)
         agentRewards[t] = reward_t
 
     return np.cumsum(expectedClairvoyantRewards - agentRewards)
@@ -48,7 +48,7 @@ if __name__ == '__main__':
 
     clairvoyantRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
-        clairvoyantAgent = ClairvoyantAgent(best_price)
+        clairvoyantAgent = ClairvoyantAgent(best_price, discretizedPrices, conversionProbability)
         clairvoyantRegretPerTrial[trial, :] = testAgent(clairvoyantAgent, T, trial, expectedClairvoyantRewards)
         print("clairvoyant " + str(trial + 1))
 

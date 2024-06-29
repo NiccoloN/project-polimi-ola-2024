@@ -131,6 +131,7 @@ class GPUCBAgent:
         self.reward_hist = np.array([])
         self.mu_t = np.zeros(discretization)
         self.sigma_t = np.zeros(discretization)
+        self.ucbs_t = np.zeros(discretization)
         self.gamma = lambda t: np.log(t + 1) ** 2
         self.beta = lambda t: 1 + 0.5 * np.sqrt(2 * (self.gamma(t) + 1 + np.log(t)))
         self.nPulls = np.zeros(discretization)
@@ -138,8 +139,8 @@ class GPUCBAgent:
 
     def pull_arm(self):
         self.mu_t, self.sigma_t = self.gp.predict(self.arms)
-        ucbs = self.mu_t + self.beta(self.t) * self.sigma_t
-        self.a_t = np.argmax(ucbs)
+        self.ucbs_t = self.mu_t + self.beta(self.t) * self.sigma_t
+        self.a_t = np.argmax(self.ucbs_t)
         return self.arms[self.a_t]
 
     def update(self, r_t, showPlot=False):
@@ -157,6 +158,9 @@ class GPUCBAgent:
             plt.suptitle(f'Estimated Profit - {self.t + 1} samples')
             plt.scatter(self.action_hist, self.reward_hist)
             plt.show()
+
+    def getEstimatedRewardMean(self):
+        return self.ucbs_t
 
 
 class GPTSAgent:
@@ -168,14 +172,15 @@ class GPTSAgent:
         self.action_hist = np.array([])
         self.reward_hist = np.array([])
         self.mu_t = np.zeros(discretization)
+        self.samples_t = np.zeros(discretization)
         self.sigma_t = np.zeros(discretization)
         self.nPulls = np.zeros(discretization)
         self.t = 0
 
     def pull_arm(self):
         self.mu_t, self.sigma_t = self.gp.predict(self.arms)
-        samples = np.random.normal(self.mu_t, self.sigma_t)
-        self.a_t = np.argmax(samples)
+        self.samples_t = np.random.normal(self.mu_t, self.sigma_t)
+        self.a_t = np.argmax(self.samples_t)
         return self.arms[self.a_t]
 
     def update(self, r_t, showPlot=False):
@@ -194,13 +199,21 @@ class GPTSAgent:
             plt.scatter(self.action_hist, self.reward_hist)
             plt.show()
 
+    def getEstimatedRewardMean(self):
+        return self.samples_t
+
 
 class ClairvoyantAgent:
-    def __init__(self, action):
+    def __init__(self, action, discretizedPrices, conversionProbability):
         self.action = action
+        self.discretizedPrices = discretizedPrices
+        self.conversionProbability = conversionProbability
 
     def pull_arm(self):
         return self.action
 
     def update(self, r_t, showPlot=False):
         return
+
+    def getEstimatedRewardMean(self):
+        return self.conversionProbability(self.discretizedPrices)
