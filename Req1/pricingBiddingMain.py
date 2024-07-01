@@ -11,14 +11,19 @@ def testAgent(agent, T, seed):
         price_t = agent.pull_arm()
         print("price at day " + str(t) + ": " + str(price_t))
         valuation_t = np.clip(agent.getEstimatedRewardMean()[np.where(discretizedPrices == price_t)], 0, price_t)
+        print("valuation: " + str(valuation_t))
         nCustomers_t = bidding(valuation_t, 0.1, 1000, 1, 50, False, t)
+        print("nCustomers: " + str(nCustomers_t))
         demand_t, reward_t = env.round(price_t, nCustomers_t)
+        print("Est. conv probability: " + str(demand_t/nCustomers_t))
         if nCustomers_t == 0 or demand_t == 0:
             agent.update(0, False)
             agentRewards[t] = 0
         else:
             agent.update(reward_t / nCustomers_t, False)
             agentRewards[t] = reward_t / nCustomers_t
+        print("reward: " + str(agentRewards[t]))
+        print(" ")
 
     # clairvoyant
     expectedClairvoyantRewards = np.max(reward_function(discretizedPrices, conversionProbability(discretizedPrices)))

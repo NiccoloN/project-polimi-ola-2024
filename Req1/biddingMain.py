@@ -33,7 +33,7 @@ def bidding(myValuation, othersValuation, T, numTrials, budget, showPlots, seed)
         ucbRegretArray = np.zeros((numTrials, T))
 
         for trial in range(numTrials):
-            np.random.seed(trial)
+            np.random.seed(trial*1000 + seed)
 
             # Multiplicative pacing agent
             mpAgent = MultiplicativePacingAgent(myValuation, budget, T)
