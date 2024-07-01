@@ -44,8 +44,8 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
         plt.show()
 
     for i in range(T):
-        if i > sortedChangePoints[0]:
-            changePoint = changePoints[0]
+        if i > sortedChangePoints[0] and len(changePoints) > 0:
+            #changePoint = changePoints[0]
             changePoints = np.delete(changePoints, 0)
             demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
             if plot:
@@ -55,7 +55,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
 
         mu[i, :] = demandCurve
 
-    return mu
+    return mu, sortedChangePoints
 
 
 class NonStationaryBernoulliEnvironment:

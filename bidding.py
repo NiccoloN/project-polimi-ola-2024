@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+from pricing import generateRandomChangingDemandCurve
 from matplotlib import pyplot as plt
 from scipy import optimize
 
@@ -240,3 +241,12 @@ class FFMultiplicativePacingAgent:
                             a_min=0, a_max=1 / self.rho)
         # update budget
         self.budget -= c_t
+
+def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges):
+    mu = []
+    std = []
+    randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
+    for t in range(T):
+        mu.append(randomChangingCurves[t, np.random.randint(numBids)])
+        std.append(np.random.uniform(0,0.5))
+    return np.random.normal(mu,std), randomChangingPoints
