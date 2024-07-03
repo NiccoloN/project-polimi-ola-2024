@@ -3,6 +3,8 @@ import numpy as np
 from pricing import generateRandomChangingDemandCurve
 from matplotlib import pyplot as plt
 from scipy import optimize
+import math
+
 
 
 class Auction:
@@ -242,11 +244,38 @@ class FFMultiplicativePacingAgent:
         # update budget
         self.budget -= c_t
 
-def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges):
+def generateRandomChangingBids2(minBid, maxBid, numBids, T, numChanges):
     mu = []
     std = []
     randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
     for t in range(T):
         mu.append(randomChangingCurves[t, np.random.randint(numBids)])
         std.append(np.random.uniform(0,0.5))
+    return np.random.normal(mu,std), randomChangingPoints
+
+def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges):
+    mu = []
+    std = []
+    check = []
+    randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
+    for curve in range(len(randomChangingPoints)):
+        for t in range(randomChangingPoints[curve - 1], randomChangingPoints[curve]):
+            y2 = randomChangingCurves[curve, round(0.96*T)]
+            y1 = randomChangingCurves[curve, round(0.95*T)]
+            x2 = round(0.96*T)
+            x1 = round(0.95*T)
+            derivative = 1000*abs(y2-y1)/(x2-x1)
+            check.append(derivative)
+            mu.append(derivative)
+            std.append(np.random.uniform(0,0.5))
+    return np.random.normal(mu,std), randomChangingPoints, check
+
+def generateRandomChangingBids3(minBid, maxBid, numBids, T, numChanges):
+    mu = []
+    std = []
+    randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
+    for curve in range(len(randomChangingPoints)):
+        for t in range(randomChangingPoints[curve-1],randomChangingPoints[curve]):
+            mu.append(randomChangingCurves[curve, np.random.randint(numBids)])
+            std.append(np.random.uniform(0,0.5))
     return np.random.normal(mu,std), randomChangingPoints

@@ -61,7 +61,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
 class NonStationaryBernoulliEnvironment:
     def __init__(self, minPrice, maxPrice, numPrices, numChanges, T, seed, plot):
         np.random.seed(seed)
-        self.mu = generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot)
+        self.mu, self.sortedCangePoints = generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot)
         self.rewards = np.random.binomial(n=1, p=self.mu)
         self.K = self.rewards.shape[1]
         self.t = 0

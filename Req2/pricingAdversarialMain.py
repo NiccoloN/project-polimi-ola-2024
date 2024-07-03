@@ -44,21 +44,17 @@ if __name__ == '__main__':
     plt.xlabel('$t$')
     plt.show()
 
-    m_t, changingPoints = generateRandomChangingBids(0.2, 1, 1000, T, 9)
+    m_t, changingPoints, check = generateRandomChangingBids(0.2, 1, 1000, T, 9)
     m_t = (m_t + abs(min(m_t))) / (max(m_t) + abs(min(m_t)))
     t = np.arange(T)
     print(m_t)
+    print(check)
 
-    #colors = cm.rainbow(np.linspace(0, 1, 10))
+    colors = cm.rainbow(np.linspace(0, 1, 10))
+    for i in range(8):
+        xRange = np.arange(changingPoints[i-1], changingPoints[i])
+        plt.plot(xRange, m_t[changingPoints[i-1]:changingPoints[i]], 'o', color=colors[i])
 
-    start = 0
-    end = changingPoints[0]
-    for t in range(len(changingPoints)+1):
-        plt.plot(range(start,end), m_t, 'ro', label=f'$\mu^*$')
-        start = end
-        changingPoints.pop(0)
-        #colors.pop(0)
-        end = changingPoints[0]
 
     plt.legend()
     plt.xlabel('$t$')
