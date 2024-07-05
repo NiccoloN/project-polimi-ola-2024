@@ -1,6 +1,4 @@
-from bidding import generateRandomChangingBids
 from pricing import *
-import matplotlib.cm as cm
 
 
 def testAgent(agent, T, seed, expectedClairvoyantRewards):
@@ -44,18 +42,3 @@ if __name__ == '__main__':
     plt.xlabel('$t$')
     plt.show()
 
-    m_t, changingPoints, check = generateRandomChangingBids(0.2, 1, 1000, T, 9)
-    m_t = (m_t + abs(min(m_t))) / (max(m_t) + abs(min(m_t)))
-    t = np.arange(T)
-    print(m_t)
-    print(check)
-
-    colors = cm.rainbow(np.linspace(0, 1, 10))
-    for i in range(8):
-        xRange = np.arange(changingPoints[i-1], changingPoints[i])
-        plt.plot(xRange, m_t[changingPoints[i-1]:changingPoints[i]], 'o', color=colors[i])
-
-
-    plt.legend()
-    plt.xlabel('$t$')
-    plt.show()
