@@ -35,7 +35,6 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
     sortedChangePoints = np.sort(changePoints)
 
     mu = np.zeros((T, numPrices))
-    changePoint = 0
     demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
 
     if plot:
@@ -43,33 +42,41 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
         plt.ylim((0, maxPrice))
         plt.show()
 
+    changePointIndex = 0
+    changePoint = 0
     for i in range(T):
-        if i > sortedChangePoints[0] and len(changePoints) > 0:
-            #changePoint = changePoints[0]
-            changePoints = np.delete(changePoints, 0)
+        if i >= changePoint:
             demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
+            if changePoint < sortedChangePoints[-1]:
+                changePointIndex += 1
+                changePoint = sortedChangePoints[changePointIndex]
+            else:
+                changePoint = T+1
+
             if plot:
                 plt.plot(demandCurve)
                 plt.ylim((0, maxPrice))
                 plt.show()
-
         mu[i, :] = demandCurve
-
     return mu, sortedChangePoints
 
 
 class NonStationaryBernoulliEnvironment:
-    def __init__(self, minPrice, maxPrice, numPrices, numChanges, T, seed, plot):
+    def __init__(self, cost, minPrice, maxPrice, prices, numChanges, T, seed, plot):
         np.random.seed(seed)
-        self.mu, self.sortedCangePoints = generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot)
-        self.rewards = np.random.binomial(n=1, p=self.mu)
-        self.K = self.rewards.shape[1]
+        self.cost = cost
+        self.pricesArray = prices
+        self.K = prices.size
+        self.mu, self.sortedChangePoints = generateRandomChangingDemandCurve(minPrice, maxPrice, self.K, T, numChanges, plot)
         self.t = 0
 
-    def round(self, a_t):
-        r_t = self.rewards[self.t, a_t]
+    def round(self, price_t, nCustomers_t):
+        if self.t == 1000:
+            print("zioporco")
+        nSales_t = np.random.binomial(n=nCustomers_t, p=self.mu[self.t, np.where(self.pricesArray == price_t)])
+        profit_t = (price_t - self.cost) * nSales_t
         self.t += 1
-        return r_t
+        return nSales_t, profit_t
 
 
 class RBFGaussianProcess:
@@ -217,3 +224,100 @@ class ClairvoyantAgent:
 
     def getEstimatedRewardMean(self):
         return self.conversionProbability(self.discretizedPrices)
+
+
+class SWUCBAgent:
+    def __init__(self, discretizedPrices, T, W, range=1):
+        self.K = discretizedPrices.size
+        self.discretizedPrices = discretizedPrices
+        self.T = T
+        self.W = W
+        self.range = range
+        self.a_t = None
+        self.armsHistory = np.zeros(T)
+        self.rewardsCache = np.repeat(np.nan, repeats=self.K * W).reshape(W, self.K)
+        self.N_pulls = np.zeros(self.K)
+        self.t = 0
+
+    def pull_arm(self):
+        if self.t < self.K:
+            self.a_t = self.t
+        else:
+            nPulls_w = self.W - np.isnan(self.rewardsCache).sum(axis=0)
+            avgRewards_w = np.nanmean(self.rewardsCache, axis=0)
+            ucbs = avgRewards_w + self.range * np.sqrt(
+                2 * np.log(self.W) / nPulls_w)  # there's a typo in the slides, log(T) -> log(W)
+            self.a_t = np.argmax(ucbs)
+        self.armsHistory[self.t] = self.a_t
+        return self.discretizedPrices[self.a_t]
+
+    def update(self, r_t):
+        self.N_pulls[self.a_t] += 1
+        self.rewardsCache = np.delete(self.rewardsCache, (0), axis=0)  # remove oldest observation
+        new_samples = np.repeat(np.nan, self.K)
+        new_samples[self.a_t] = r_t
+        self.rewardsCache = np.vstack((self.rewardsCache, new_samples))  # add new observation
+        self.t += 1
+
+
+class CUSUMUCBAgent:
+    def __init__(self, discretizedPrices, T, M, h, alpha=0.99, range=1):
+        self.discretizedPrices = discretizedPrices
+        self.K = discretizedPrices.size
+        self.T = T
+        self.M = M
+        self.h = h
+        self.alpha = alpha
+        self.range = range
+        self.a_t = None
+        self.reset_times = np.zeros(self.K)
+        self.N_pulls = np.zeros(self.K)
+        self.all_rewards = [[] for _ in np.arange(self.K)]
+        self.counters = np.repeat(M, self.K)
+        self.average_rewards = np.zeros(self.K)
+        self.n_resets = np.zeros(self.K)
+        self.n_t = 0
+        self.t = 0
+
+    def pull_arm(self):
+        if (self.counters > 0).any():
+            for a in np.arange(self.K):
+                if self.counters[a] > 0:
+                    self.counters[a] -= 1
+                    self.a_t = a
+                    break
+        else:
+            if np.random.random() <= 1 - self.alpha:
+                ucbs = self.average_rewards + self.range * np.sqrt(np.log(self.n_t) / self.N_pulls)
+                self.a_t = np.argmax(ucbs)
+            else:
+                self.a_t = np.random.choice(np.arange(self.K))  # extra exploration
+        return self.discretizedPrices[self.a_t]
+
+    def update(self, r_t):
+        self.N_pulls[self.a_t] += 1
+        self.all_rewards[self.a_t].append(r_t)
+        if self.counters[self.a_t] == 0:
+            if self.change_detection():
+                self.n_resets[self.a_t] += 1
+                self.N_pulls[self.a_t] = 0
+                self.average_rewards[self.a_t] = 0
+                self.counters[self.a_t] = self.M
+                self.all_rewards[self.a_t] = []
+                self.reset_times[self.a_t] = self.t
+            else:
+                self.average_rewards[self.a_t] += (r_t - self.average_rewards[self.a_t]) / self.N_pulls[self.a_t]
+        self.n_t = sum(self.N_pulls)
+        self.t += 1
+
+    def change_detection(self):
+        ''' CUSUM CD sub-routine. This function returns 1 if there's evidence that the last pulled arm has its average reward changed '''
+        u_0 = np.mean(self.all_rewards[self.a_t][:self.M])
+        sp, sm = (
+        np.array(self.all_rewards[self.a_t][self.M:]) - u_0, u_0 - np.array(self.all_rewards[self.a_t][self.M:]))
+        gp, gm = 0, 0
+        for sp_, sm_ in zip(sp, sm):
+            gp, gm = max([0, gp + sp_]), max([0, gm + sm_])
+            if max([gp, gm]) >= self.h:
+                return True
+        return False
