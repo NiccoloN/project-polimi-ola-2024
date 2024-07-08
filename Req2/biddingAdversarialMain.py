@@ -21,7 +21,7 @@ if __name__ == '__main__':
     nUsers = 10000
     B = nUsers/10
     T = nUsers
-    numChanges = 20
+    numChanges = 10
     rho = B/T
 
     m_t, advertisersBids, changingPoints, check = generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges, nAdvertisers)
