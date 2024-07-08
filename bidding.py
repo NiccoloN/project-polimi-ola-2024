@@ -257,24 +257,25 @@ def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges, nAdvertis
     mu = []
     std = []
     check = []
-    advertisorsBids = []
+    advertisersBids = []
     randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
-    for curve in range(len(randomChangingPoints)):
-        for t in range(randomChangingPoints[curve - 1], randomChangingPoints[curve]):
-            y2 = randomChangingCurves[curve, round(0.96*T)]
-            y1 = randomChangingCurves[curve, round(0.95*T)]
-            x2 = round(0.96*T)
-            x1 = round(0.95*T)
-            derivative = 1000*abs(y2-y1)/(x2-x1)
+    randomChangingPoints = np.append(randomChangingPoints, T)
+    for curve in range(len(randomChangingPoints) - 1):
+        for t in range(randomChangingPoints[curve], randomChangingPoints[curve + 1]):
+            y2 = randomChangingCurves[randomChangingPoints[curve], round(0.96*numBids)]
+            y1 = randomChangingCurves[randomChangingPoints[curve], round(0.95*numBids)]
+            x2 = round(0.96*numBids)
+            x1 = round(0.95*numBids)
+            derivative = numBids*abs(y2-y1)/(x2-x1)
             check.append(derivative)
             mu.append(derivative)
             std.append(np.random.uniform(0,0.5))
     #mu = (mu + abs(min(mu))) / (max(mu) + abs(min(mu)))
-    for advertisor in range(nAdvertisors):
-        advertisorsBids.append(np.random.normal(mu,std))
-    advertisorsBids = np.array(advertisorsBids)
-    m_t = advertisorsBids.max(axis=0)
-    return m_t, advertisorsBids, randomChangingPoints, check
+    for advertiser in range(nAdvertisors):
+        advertisersBids.append(np.random.normal(mu,std))
+    advertisersBids = np.array(advertisersBids)
+    m_t = advertisersBids.max(axis=0)
+    return m_t, advertisersBids, randomChangingPoints, check
 
 def generateRandomChangingBids3(minBid, maxBid, numBids, T, numChanges):
     mu = []
