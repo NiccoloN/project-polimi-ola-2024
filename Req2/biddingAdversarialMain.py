@@ -21,7 +21,7 @@ if __name__ == '__main__':
     nUsers = 10000
     B = nUsers/10
     T = nUsers
-    numChanges = 9
+    numChanges = 20
     rho = B/T
 
     m_t, advertisersBids, changingPoints, check = generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges, nAdvertisers)
@@ -34,10 +34,11 @@ if __name__ == '__main__':
     #print(m_t)
     #print(check)
 
-    colors = cm.rainbow(np.linspace(0, 1, 10))
+    colors = cm.rainbow(np.linspace(0, 1, numChanges))
+    np.random.shuffle(colors)
     for i in range(numChanges):
-        xRange = np.arange(changingPoints[i-1], changingPoints[i])
-        plt.plot(xRange, m_t[changingPoints[i-1]:changingPoints[i]], 'o', color=colors[i-1])
+        xRange = np.arange(changingPoints[i], changingPoints[i+1])
+        plt.plot(xRange, m_t[changingPoints[i]:changingPoints[i+1]], 'o', color=colors[i])
 
     win_probabilities = np.array([sum(b > m_t) / nUsers for b in bids])
 
@@ -69,8 +70,6 @@ if __name__ == '__main__':
 
     np.random.seed(T)
     for u in range(nUsers):
-        #if u >= advertisersBids.shape[1]:
-            #break
         # interaction
         myBid = agent.bid()
         bids = np.append(myBid, advertisersBids[:, u].ravel())
