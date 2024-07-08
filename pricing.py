@@ -71,8 +71,6 @@ class NonStationaryBernoulliEnvironment:
         self.t = 0
 
     def round(self, price_t, nCustomers_t):
-        if self.t == 1000:
-            print("zioporco")
         nSales_t = np.random.binomial(n=nCustomers_t, p=self.mu[self.t, np.where(self.pricesArray == price_t)])
         profit_t = (price_t - self.cost) * nSales_t
         self.t += 1
@@ -261,7 +259,7 @@ class SWUCBAgent:
 
 
 class CUSUMUCBAgent:
-    def __init__(self, discretizedPrices, T, M, h, alpha=0.99, range=1):
+    def __init__(self, discretizedPrices, T, M, h, alpha=0.1, range=1):
         self.discretizedPrices = discretizedPrices
         self.K = discretizedPrices.size
         self.T = T
@@ -270,14 +268,16 @@ class CUSUMUCBAgent:
         self.alpha = alpha
         self.range = range
         self.a_t = None
-        self.reset_times = np.zeros(self.K)
+        self.lastResetTime = 0
+        self.resetTimes = np.array([0])
         self.N_pulls = np.zeros(self.K)
         self.all_rewards = [[] for _ in np.arange(self.K)]
         self.counters = np.repeat(M, self.K)
         self.average_rewards = np.zeros(self.K)
-        self.n_resets = np.zeros(self.K)
-        self.n_t = 0
+        self.n_resets = 0
+        self.n_t = 0    # Total number of pulls
         self.t = 0
+
 
     def pull_arm(self):
         if (self.counters > 0).any():
@@ -291,7 +291,7 @@ class CUSUMUCBAgent:
                 ucbs = self.average_rewards + self.range * np.sqrt(np.log(self.n_t) / self.N_pulls)
                 self.a_t = np.argmax(ucbs)
             else:
-                self.a_t = np.random.choice(np.arange(self.K))  # extra exploration
+                self.a_t = np.random.choice(np.arange(self.K))    # Extra exploration
         return self.discretizedPrices[self.a_t]
 
     def update(self, r_t):
@@ -299,22 +299,23 @@ class CUSUMUCBAgent:
         self.all_rewards[self.a_t].append(r_t)
         if self.counters[self.a_t] == 0:
             if self.change_detection():
-                self.n_resets[self.a_t] += 1
+                self.n_resets += 1
                 self.N_pulls[self.a_t] = 0
                 self.average_rewards[self.a_t] = 0
                 self.counters[self.a_t] = self.M
-                self.all_rewards[self.a_t] = []
-                self.reset_times[self.a_t] = self.t
+                self.all_rewards = [[] for _ in np.arange(self.K)]
+                self.lastResetTime = self.t
+                self.resetTimes = np.append(self.resetTimes, self.t)
+
             else:
                 self.average_rewards[self.a_t] += (r_t - self.average_rewards[self.a_t]) / self.N_pulls[self.a_t]
         self.n_t = sum(self.N_pulls)
         self.t += 1
 
     def change_detection(self):
-        ''' CUSUM CD sub-routine. This function returns 1 if there's evidence that the last pulled arm has its average reward changed '''
+        # CUSUM CD sub-routine. This function returns 1 if there's evidence that the last pulled arm has its average reward changed
         u_0 = np.mean(self.all_rewards[self.a_t][:self.M])
-        sp, sm = (
-        np.array(self.all_rewards[self.a_t][self.M:]) - u_0, u_0 - np.array(self.all_rewards[self.a_t][self.M:]))
+        sp, sm = (np.array(self.all_rewards[self.a_t][self.M:]) - u_0, u_0 - np.array(self.all_rewards[self.a_t][self.M:]))
         gp, gm = 0, 0
         for sp_, sm_ in zip(sp, sm):
             gp, gm = max([0, gp + sp_]), max([0, gm + sm_])
