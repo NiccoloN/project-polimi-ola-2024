@@ -264,8 +264,8 @@ def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges, nAdvertis
         for t in range(randomChangingPoints[curve], randomChangingPoints[curve + 1]):
             y2 = randomChangingCurves[randomChangingPoints[curve], round(0.96*numBids)]
             y1 = randomChangingCurves[randomChangingPoints[curve], round(0.95*numBids)]
-            x2 = round(0.96*numBids)
-            x1 = round(0.95*numBids)
+            x2 = round(0.91*numBids)
+            x1 = round(0.90*numBids)
             derivative = numBids*abs(y2-y1)/(x2-x1)
             check.append(derivative)
             mu.append(derivative)

@@ -32,6 +32,7 @@ def generateRandomDemandCurve(minPrice, maxPrice, numPrices):
 def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot):
     changePoints = np.random.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
     changePoints = changePoints * np.arange(numChanges)
+    changePoints = np.round(T * (changePoints - abs(min(changePoints))) / (max(changePoints) - abs(min(changePoints)))).astype(int)
     sortedChangePoints = np.sort(changePoints)
 
     mu = np.zeros((T, numPrices))
