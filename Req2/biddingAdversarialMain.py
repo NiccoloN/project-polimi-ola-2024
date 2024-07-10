@@ -1,4 +1,3 @@
-import numpy as np
 from bidding import *
 from pricing import *
 import matplotlib.cm as cm
@@ -15,8 +14,8 @@ if __name__ == '__main__':
     maxBid = 1
     myValuation = 0.8
     othersValuation = 0.6
-    bids = np.arange(0, 1, 0.01)
-    numBids = len(bids)
+    possibleBids = np.arange(0, 1, 0.01)
+    numBids = len(possibleBids)
     nUsers = 10000
     B = nUsers/5
     T = nUsers
@@ -43,18 +42,18 @@ if __name__ == '__main__':
     plt.show()
     '''
 
-    winProbabilities = np.array([sum(b > m_t) / nUsers for b in bids])
+    winProbabilities = np.array([sum(b > m_t) / nUsers for b in possibleBids])
 
     ## Linear Program
-    c = -(myValuation - bids) * winProbabilities
-    A_ub = [bids * winProbabilities]
+    c = -(myValuation - possibleBids) * winProbabilities
+    A_ub = [possibleBids * winProbabilities]
     b_ub = [rho]
-    A_eq = [np.ones(len(bids))]
+    A_eq = [np.ones(len(possibleBids))]
     b_eq = [1]
     res = optimize.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=(0, 1))
     gamma = res.x
     expectedClairvoyantUtilities = [-res.fun for u in range(nUsers)]
-    expectedClairvoyantBids = [sum(bids * gamma) for u in range(nUsers)] # (bids * gamma * winProbabilities) ?
+    expectedClairvoyantBids = [sum(possibleBids * gamma) for u in range(nUsers)] # (bids * gamma * winProbabilities) ?
 
     '''
     changing_winProbabilities = []
@@ -80,11 +79,7 @@ if __name__ == '__main__':
     '''
 
     eta = 1 / np.sqrt(nUsers)
-    agent = FFMultiplicativePacingAgent(bids_set=bids,
-                                        valuation=myValuation,
-                                        budget=B,
-                                        T=nUsers,
-                                        eta=eta)
+    agent = FFMultiplicativePacingAgent(bids_set=possibleBids, valuation=myValuation, budget=B, T=nUsers, eta=eta)
 
     auction = FirstPriceAuction(np.ones(nAdvertisers + 1))
 
@@ -147,8 +142,8 @@ if __name__ == '__main__':
     '''
     plt.show()
     # %%
-    cumulative_payments = np.cumsum(myPayments)
-    plt.plot(cumulative_payments)
+    cumulativePayments = np.cumsum(myPayments)
+    plt.plot(cumulativePayments)
     plt.xlabel('$t$')
     plt.ylabel('$\sum c_t$')
     plt.axhline(B, color='red', label='Budget')
