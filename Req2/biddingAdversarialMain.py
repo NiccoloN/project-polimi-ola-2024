@@ -17,29 +17,31 @@ if __name__ == '__main__':
     othersValuation = 0.6
     bids = np.arange(0, 1, 0.01)
     numBids = len(bids)
-    # numBids = 100
     nUsers = 10000
-    B = nUsers/10
+    B = nUsers/5
     T = nUsers
-    numChanges = 10
     rho = B/T
 
+    '''
     m_t, advertisersBids, changingPoints, check = generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges+1, nAdvertisers)
     m_t = minBid + (myValuation - minBid) * (m_t - abs(min(m_t))) / (max(m_t) - abs(min(m_t)))
     for advertiser in range(nAdvertisers):
         advertisersBids[advertiser,:] = (advertisersBids[advertiser,:] + abs(min(advertisersBids[advertiser,:]))) / (max(advertisersBids[advertiser,:]) + abs(min(advertisersBids[advertiser,:])))
         prova = 1
+    '''
+    m_t, advertisersBids = generateRandomChangingBids(T, nAdvertisers)
 
     t = np.arange(T)
     #print(m_t)
     #print(check)
-
+    '''
     colors = cm.rainbow(np.linspace(0, 1, numChanges))
     np.random.shuffle(colors)
     for i in range(numChanges):
         xRange = np.arange(changingPoints[i], changingPoints[i+1])
         plt.plot(xRange, m_t[changingPoints[i]:changingPoints[i+1]], 'o', color=colors[i], markersize=1)
     plt.show()
+    '''
 
     winProbabilities = np.array([sum(b > m_t) / nUsers for b in bids])
 
@@ -52,8 +54,9 @@ if __name__ == '__main__':
     res = optimize.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=(0, 1))
     gamma = res.x
     expectedClairvoyantUtilities = [-res.fun for u in range(nUsers)]
-    expectedClairvoyantBids = [sum(bids * gamma) for u in range(nUsers)]
+    expectedClairvoyantBids = [sum(bids * gamma) for u in range(nUsers)] # (bids * gamma * winProbabilities) ?
 
+    '''
     changing_winProbabilities = []
     changing_nUsers = []
     changing_m_t = []
@@ -74,7 +77,7 @@ if __name__ == '__main__':
         gamma = res.x
         changing_expectedClairvoyantUtilities.append([-res.fun for u in range(changing_nUsers[change])])
         changing_expectedClairvoyantBids.append([sum(bids * gamma) for u in range(changing_nUsers[change])])
-
+    '''
 
     eta = 1 / np.sqrt(nUsers)
     agent = FFMultiplicativePacingAgent(bids_set=bids,
@@ -106,6 +109,7 @@ if __name__ == '__main__':
         totalWins += myWin
 
     # %%
+    '''
     for i in range(numChanges):
         xRange = np.arange(changingPoints[i], changingPoints[i+1])
         plt.plot(xRange, changing_m_t[i], 'o', color=colors[i], markersize=1)
@@ -114,8 +118,9 @@ if __name__ == '__main__':
     plt.xlabel('$t$')
     plt.ylabel('$m_t$')
     plt.show()
+    '''
     # %%
-    plt.plot(m_t)
+    plt.plot(m_t, 'o', markersize=1)
     plt.plot(expectedClairvoyantBids)
     plt.title('Expected maximum Bids and Clairvoyant Bid')
     plt.xlabel('$t$')
@@ -124,21 +129,22 @@ if __name__ == '__main__':
 
     print(f'Total Number of Wins: {totalWins}')
     # %%
-    plt.plot(myBids)
-    plt.plot(expectedClairvoyantBids)
+    plt.plot(myBids, 'o', markersize=1)
     plt.xlabel('$t$')
     plt.ylabel('$b_t$')
     plt.title('Chosen Bids')
     plt.show()
     # %%
-    plt.plot(myBids)
+    plt.plot(myBids, 'o', markersize=1)
+    plt.plot(expectedClairvoyantBids)
     plt.xlabel('$t$')
     plt.ylabel('$b_t$')
     plt.title('Chosen Bids and Clairvoyants bids')
-    plt.plot(expectedClairvoyantBids)
+    '''
     for i in range(numChanges):
         xRange = np.arange(changingPoints[i], changingPoints[i+1])
         plt.plot(xRange, changing_expectedClairvoyantBids[i], color='black')
+    '''
     plt.show()
     # %%
     cumulative_payments = np.cumsum(myPayments)
@@ -157,6 +163,7 @@ if __name__ == '__main__':
     plt.title('Cumulative Regret of Multiplicative Pacing')
     plt.show()
     # %%
+    '''
     flattenedCECU = [item for sublist in changing_expectedClairvoyantUtilities for item in sublist]
     CECU = np.array(flattenedCECU).ravel()
     changingCumulativeRegret = np.cumsum(CECU - utilities)
@@ -165,5 +172,6 @@ if __name__ == '__main__':
     plt.ylabel('$\sum R_t$')
     plt.title('Cumulative Regret of Multiplicative Pacing (Changing Clairvoyant) ')
     plt.show()
+    '''
 
     prova = 2

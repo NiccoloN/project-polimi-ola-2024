@@ -1,6 +1,5 @@
 import sys
 import numpy as np
-import random
 from matplotlib import pyplot as plt
 from scipy import optimize
 import math
@@ -244,92 +243,25 @@ class FFMultiplicativePacingAgent:
         # update budget
         self.budget -= c_t
 
-def generateRandomCurve(minPrice, maxPrice, numPrices):
-    curve = np.zeros(numPrices)
-    start = 0
-    factor1 = random.choice([15, 20, 25, 30])
-    factor2 = random.choice([5, 10, 15])
-    for i in range(0, numPrices):
-        start += math.log(random.random()) / factor1 / (numPrices - i) * factor2
-        curve[i] = math.exp(start) * (maxPrice - minPrice) + minPrice
-
-    curve = curve - np.min(curve)
-    curve = curve / np.max(curve)
-    return curve
-
-
-def generateRandomChangingCurve(minPrice, maxPrice, numPrices, T, numChanges, plot):
-    changePoints = np.random.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
-    changePoints = changePoints * np.arange(numChanges)
-    changePoints = np.round(T * (changePoints - abs(min(changePoints))) / (max(changePoints) - abs(min(changePoints)))).astype(int)
-    sortedChangePoints = np.sort(changePoints)
-
-    mu = np.zeros((T, numPrices))
-    demandCurve = generateRandomCurve(minPrice, maxPrice, numPrices)
-
-    if plot:
-        plt.plot(demandCurve)
-        plt.ylim((0, maxPrice))
-        plt.show()
-
-    changePointIndex = 0
-    changePoint = 0
-    for i in range(T):
-        if i >= changePoint:
-            demandCurve = generateRandomCurve(minPrice, maxPrice, numPrices)
-            if changePoint < sortedChangePoints[-1]:
-                changePointIndex += 1
-                changePoint = sortedChangePoints[changePointIndex]
-            else:
-                changePoint = T+1
-
-            if plot:
-                plt.plot(demandCurve)
-                plt.ylim((0, maxPrice))
-                plt.title("Change at time t = " + str(i))
-                plt.show()
-        mu[i, :] = demandCurve
-    return mu, sortedChangePoints
-
-def generateRandomChangingBids2(minBid, maxBid, numBids, T, numChanges):
-    mu = []
-    std = []
-    randomChangingCurves, randomChangingPoints = generateRandomChangingCurve(minBid, maxBid, numBids, T, numChanges, False)
+def generateRandomChangingBids(T, nAdvertisers):
+    advertisersBids = np.zeros((nAdvertisers, T))
     for t in range(T):
-        mu.append(randomChangingCurves[t, np.random.randint(numBids)])
-        std.append(np.random.uniform(0,0.5))
-    return np.random.normal(mu,std), randomChangingPoints
+        newMaxBid = np.clip(abs(np.random.normal(0.4 * math.sin(t / 1) + 0.6, 0.1)), 0, 1)
+        advertisersBids[:,t] = np.random.uniform(0,newMaxBid, nAdvertisers)
+        #advertisersBids[:,t] = np.random.uniform(minBid, maxBid, nAdvertisers)
+    return advertisersBids.max(axis=0), advertisersBids
 
-def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges, nAdvertisors):
-    mu = []
-    std = []
-    check = []
-    advertisersBids = []
-    randomChangingCurves, randomChangingPoints = generateRandomChangingCurve(minBid, maxBid, numBids, T, numChanges, False)
-    randomChangingPoints = np.append(randomChangingPoints, T)
-    for curve in range(len(randomChangingPoints) - 1):
-        for t in range(randomChangingPoints[curve], randomChangingPoints[curve + 1]):
-            y2 = randomChangingCurves[randomChangingPoints[curve], round(0.96*numBids)]
-            y1 = randomChangingCurves[randomChangingPoints[curve], round(0.95*numBids)]
-            x2 = round(0.91*numBids)
-            x1 = round(0.90*numBids)
-            derivative = numBids*abs(y2-y1)/(x2-x1)
-            check.append(derivative)
-            mu.append(derivative)
-            std.append(np.random.uniform(0,0.5))
-    #mu = (mu + abs(min(mu))) / (max(mu) + abs(min(mu)))
-    for advertiser in range(nAdvertisors):
-        advertisersBids.append(np.random.normal(mu,std))
-    advertisersBids = np.array(advertisersBids)
-    m_t = advertisersBids.max(axis=0)
-    return m_t, advertisersBids, randomChangingPoints, check
 
-def generateRandomChangingBids3(minBid, maxBid, numBids, T, numChanges):
-    mu = []
-    std = []
-    randomChangingCurves, randomChangingPoints = generateRandomChangingCurve(minBid, maxBid, numBids, T, numChanges, False)
-    for curve in range(len(randomChangingPoints)):
-        for t in range(randomChangingPoints[curve-1],randomChangingPoints[curve]):
-            mu.append(randomChangingCurves[curve, np.random.randint(numBids)])
-            std.append(np.random.uniform(0,0.5))
-    return np.random.normal(mu,std), randomChangingPoints
+def generateRandomChangingBids2(minBid, maxBid, numBids, T, numChanges, nAdvertisers):
+    pattern = lambda t: 1 - np.abs(np.sin(10 * t / T))
+    other_bids = np.array([np.random.uniform(0, pattern(t), size=nAdvertisers) for t in range(T)]).T
+    return other_bids.max(axis=0), other_bids
+
+
+def generateRandomChangingBids3(minBid, maxBid, numBids, T, numChanges, nAdvertisers):
+    advertisersBids = np.zeros((nAdvertisers, T))
+    for t in range(T):
+        mean = np.random.uniform(0,maxBid)
+        std = np.random.uniform(0, np.random.uniform(0, 1))
+        advertisersBids[:, t] = np.random.normal(mean, std, nAdvertisers)
+    return advertisersBids.max(axis=0), advertisersBids
