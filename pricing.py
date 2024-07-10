@@ -5,31 +5,24 @@ from matplotlib import pyplot as plt
 
 
 class StochasticEnvironment:
-    def __init__(self, conversionProbability, cost):
+    def __init__(self, conversionProbability, cost, seed):
+        self.seed = seed
+        self.rng = np.random.RandomState(seed)
         self.conversionProbability = conversionProbability
         self.cost = cost
 
     def round(self, price_t, nCustomers_t):
-        nSales_t = np.random.binomial(nCustomers_t, self.conversionProbability(price_t))
+        nSales_t = self.rng.binomial(nCustomers_t, self.conversionProbability(price_t))
         profit_t = (price_t - self.cost) * nSales_t
         return nSales_t, profit_t
 
+    def reset(self):
+        self.rng.seed(self.seed)
 
-def generateRandomDescendingCurve(minPrice, maxPrice, numPrices):
-    curve = np.zeros(numPrices)
-    start = 0
-    factor1 = random.choice([15, 20, 25, 30])
-    factor2 = random.choice([5, 10, 15])
-    for i in range(0, numPrices):
-        start += math.log(random.random()) / factor1 / (numPrices - i) * factor2
-        curve[i] = math.exp(start) * (maxPrice - minPrice) + minPrice
-
-    curve = curve - np.min(curve)
-    curve = curve / np.max(curve)
-    return curve
 
 def curveWithPeakEquation(param1, param2, param3, x):
     return (param1 * np.log(x)) ** 2 - param2 * np.sin(x) - x ** 2 + param3 * x
+
 
 def generateRandomCurveWithPeak(minPrice, maxPrice, numPrices):
     curve = np.zeros(numPrices)
@@ -41,14 +34,28 @@ def generateRandomCurveWithPeak(minPrice, maxPrice, numPrices):
     finalValue = fsolve(curveWithPeakEquation)
 
 
-def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot):
-    changePoints = np.random.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
+def generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng):
+    curve = np.zeros(numPrices)
+    start = 0
+    factor1 = rng.choice([15, 20, 25, 30])
+    factor2 = rng.choice([5, 10, 15])
+    for i in range(0, numPrices):
+        start += math.log(rng.random()) / factor1 / (numPrices - i) * factor2
+        curve[i] = math.exp(start) * (maxPrice - minPrice) + minPrice
+
+    curve = curve - np.min(curve)
+    curve = curve / np.max(curve)
+    return curve
+
+
+def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, rng, plot):
+    changePoints = rng.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
     changePoints = changePoints * np.arange(numChanges)
     changePoints = np.round(T * (changePoints - abs(min(changePoints))) / (max(changePoints) - abs(min(changePoints)))).astype(int)
     sortedChangePoints = np.sort(changePoints)
 
     mu = np.zeros((T, numPrices))
-    demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices)
+    demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng)
 
     if plot:
         plt.plot(demandCurve)
@@ -59,7 +66,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
     changePoint = 0
     for i in range(T):
         if i >= changePoint:
-            demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices)
+            demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng)
             if changePoint < sortedChangePoints[-1]:
                 changePointIndex += 1
                 changePoint = sortedChangePoints[changePointIndex]
@@ -77,20 +84,24 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
 
 class NonStationaryBernoulliEnvironment:
     def __init__(self, cost, minPrice, maxPrice, prices, numChanges, T, seed, plot):
-        np.random.seed(seed)
-        random.seed(seed)
+        self.seed = seed
+        self.rng = np.random.RandomState(seed)
         self.cost = cost
         self.pricesArray = prices
         self.K = prices.size
-        self.mu, self.sortedChangePoints = generateRandomChangingDemandCurve(minPrice, maxPrice, self.K, T, numChanges, plot)
-        self.t = 0
+        self.mu, self.sortedChangePoints = generateRandomChangingDemandCurve(minPrice, maxPrice, self.K, T, numChanges, self.rng, plot)
+        self.reset()
+
 
     def round(self, price_t, nCustomers_t):
-        nSales_t = np.random.binomial(n=nCustomers_t, p=self.mu[self.t, np.where(self.pricesArray == price_t)])
+        nSales_t = self.rng.binomial(n=nCustomers_t, p=self.mu[self.t, np.where(self.pricesArray == price_t)])
         profit_t = (price_t - self.cost) * nSales_t
         self.t += 1
         return nSales_t, profit_t
 
+    def reset(self):
+        self.rng.seed(self.seed)
+        self.t = 0
 
 class RBFGaussianProcess:
     def __init__(self, scale=1, reg=1e-2):
@@ -239,6 +250,32 @@ class ClairvoyantAgent:
         return self.conversionProbability(self.discretizedPrices)
 
 
+class EXP3Agent:
+    def __init__(self, discretizedPrices, T, learning_rate):
+        self.discretizedPrices = discretizedPrices
+        self.K = len(discretizedPrices)
+        self.learning_rate = learning_rate
+        self.weights = np.ones(self.K)
+        self.a_t = None
+        self.x_t = np.ones(self.K) / self.K
+        self.N_pulls = np.zeros(self.K)
+        self.pricesHistory = np.zeros(T)
+        self.t = 0
+
+    def pull_arm(self):
+        self.x_t = self.weights / sum(self.weights)
+        self.a_t = np.random.choice(np.arange(self.K), p=self.x_t)
+        self.pricesHistory[self.t] = self.discretizedPrices[self.a_t]
+        return self.discretizedPrices[self.a_t]
+
+    def update(self, r_t):
+        l_t = 1 - r_t
+        l_t_tilde = l_t / self.x_t[self.a_t]
+        self.weights[self.a_t] *= np.exp(-self.learning_rate * l_t_tilde)
+        self.N_pulls[self.a_t] += 1
+        self.t += 1
+
+
 class SWUCBAgent:
     def __init__(self, discretizedPrices, T, W, range=1):
         self.K = discretizedPrices.size
@@ -247,7 +284,7 @@ class SWUCBAgent:
         self.W = W
         self.range = range
         self.a_t = None
-        self.pricesHistory = np.array([])
+        self.pricesHistory = np.zeros(T)
         self.rewardsCache = np.repeat(np.nan, repeats=self.K * W).reshape(W, self.K)
         self.N_pulls = np.zeros(self.K)
         self.t = 0
@@ -263,7 +300,7 @@ class SWUCBAgent:
                 2 * np.log(self.W) / nPulls_w)  # there's a typo in the slides, log(T) -> log(W)
             self.a_t = np.argmax(ucbs)
             self.ucbsHistory[self.t, :] = ucbs
-        self.pricesHistory = np.append(self.pricesHistory, self.discretizedPrices[self.a_t])
+        self.pricesHistory[self.t] = self.discretizedPrices[self.a_t]
         return self.discretizedPrices[self.a_t]
 
     def update(self, r_t):
