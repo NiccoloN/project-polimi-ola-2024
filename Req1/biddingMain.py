@@ -1,9 +1,10 @@
+import random
 import numpy as np
-
 from bidding import *
 
 
 def bidding(myValuation, othersValuation, T, numTrials, budget, showPlots, seed):
+    random.seed(seed)
     np.random.seed(seed)
 
     # Auction settings

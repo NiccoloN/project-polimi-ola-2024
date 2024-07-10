@@ -1,19 +1,23 @@
 from pricing import *
 
 
-def testAgent(agent, T, seed, expectedClairvoyantRewards):
-    np.random.seed(seed)
+def testAgent(env, agent, T, expectedClairvoyantRewards):
+    env.reset()
     agentRewards = np.zeros(T)
     for t in range(T):
         price_t = agent.pull_arm()
         demand_t, reward_t = env.round(price_t, nCustomers)
-        agent.update(reward_t / nCustomers, True)
+        agent.update(reward_t / nCustomers, False)
         agentRewards[t] = reward_t
 
     return np.cumsum(expectedClairvoyantRewards - agentRewards)
 
 
 if __name__ == '__main__':
+    random.seed(1)
+    np.random.seed(1)
+    envSeed = 50
+
     cost = 0.2
     minPrice = cost
     maxPrice = 1
@@ -25,8 +29,8 @@ if __name__ == '__main__':
     reward_function = lambda price, n_sales: (price - cost) * n_sales
 
     T = 100
-    numTrials = 10
-    env = StochasticEnvironment(conversionProbability, cost)
+    numTrials = 5
+    env = StochasticEnvironment(conversionProbability, cost, envSeed)
 
     # clairvoyant
     profit_curve = reward_function(discretizedPrices, nCustomers * conversionProbability(discretizedPrices))
@@ -37,19 +41,19 @@ if __name__ == '__main__':
     ucbRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
         ucbAgent = GPUCBAgent(T, discretization, minPrice, maxPrice)
-        ucbRegretPerTrial[trial, :] = testAgent(ucbAgent, T, trial, expectedClairvoyantRewards)
+        ucbRegretPerTrial[trial, :] = testAgent(env, ucbAgent, T, expectedClairvoyantRewards)
         print("ucb " + str(trial + 1))
 
     tsRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
         tsAgent = GPTSAgent(T, discretization, minPrice, maxPrice)
-        tsRegretPerTrial[trial, :] = testAgent(tsAgent, T, trial, expectedClairvoyantRewards)
+        tsRegretPerTrial[trial, :] = testAgent(env, tsAgent, T, expectedClairvoyantRewards)
         print("ts " + str(trial + 1))
 
     clairvoyantRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
         clairvoyantAgent = ClairvoyantAgent(best_price, discretizedPrices, conversionProbability)
-        clairvoyantRegretPerTrial[trial, :] = testAgent(clairvoyantAgent, T, trial, expectedClairvoyantRewards)
+        clairvoyantRegretPerTrial[trial, :] = testAgent(env, clairvoyantAgent, T, expectedClairvoyantRewards)
         print("clairvoyant " + str(trial + 1))
 
     ucbAverageRegret = ucbRegretPerTrial.mean(axis=0)
@@ -63,7 +67,7 @@ if __name__ == '__main__':
 
     plt.plot(np.arange(T), ucbAverageRegret, label='UCB Average Regret')
     plt.plot(np.arange(T), tsAverageRegret, label='TS Average Regret')
-    plt.plot(np.arange(T), clairvoyantAverageRegret, label='Clairvoyant Average Regret')
+    plt.plot(np.arange(T), clairvoyantAverageRegret, label='Best Fixed Arm Average Regret')
     plt.title('cumulative regret of UCB and TS')
     plt.fill_between(np.arange(T),
                      ucbAverageRegret - ucbRegretStd / np.sqrt(numTrials),
