@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from pricing import generateRandomChangingDemandCurve
+import random
 from matplotlib import pyplot as plt
 from scipy import optimize
 import math
@@ -244,10 +244,57 @@ class FFMultiplicativePacingAgent:
         # update budget
         self.budget -= c_t
 
+def generateRandomCurve(minPrice, maxPrice, numPrices):
+    curve = np.zeros(numPrices)
+    start = 0
+    factor1 = random.choice([15, 20, 25, 30])
+    factor2 = random.choice([5, 10, 15])
+    for i in range(0, numPrices):
+        start += math.log(random.random()) / factor1 / (numPrices - i) * factor2
+        curve[i] = math.exp(start) * (maxPrice - minPrice) + minPrice
+
+    curve = curve - np.min(curve)
+    curve = curve / np.max(curve)
+    return curve
+
+
+def generateRandomChangingCurve(minPrice, maxPrice, numPrices, T, numChanges, plot):
+    changePoints = np.random.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
+    changePoints = changePoints * np.arange(numChanges)
+    changePoints = np.round(T * (changePoints - abs(min(changePoints))) / (max(changePoints) - abs(min(changePoints)))).astype(int)
+    sortedChangePoints = np.sort(changePoints)
+
+    mu = np.zeros((T, numPrices))
+    demandCurve = generateRandomCurve(minPrice, maxPrice, numPrices)
+
+    if plot:
+        plt.plot(demandCurve)
+        plt.ylim((0, maxPrice))
+        plt.show()
+
+    changePointIndex = 0
+    changePoint = 0
+    for i in range(T):
+        if i >= changePoint:
+            demandCurve = generateRandomCurve(minPrice, maxPrice, numPrices)
+            if changePoint < sortedChangePoints[-1]:
+                changePointIndex += 1
+                changePoint = sortedChangePoints[changePointIndex]
+            else:
+                changePoint = T+1
+
+            if plot:
+                plt.plot(demandCurve)
+                plt.ylim((0, maxPrice))
+                plt.title("Change at time t = " + str(i))
+                plt.show()
+        mu[i, :] = demandCurve
+    return mu, sortedChangePoints
+
 def generateRandomChangingBids2(minBid, maxBid, numBids, T, numChanges):
     mu = []
     std = []
-    randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
+    randomChangingCurves, randomChangingPoints = generateRandomChangingCurve(minBid, maxBid, numBids, T, numChanges, False)
     for t in range(T):
         mu.append(randomChangingCurves[t, np.random.randint(numBids)])
         std.append(np.random.uniform(0,0.5))
@@ -258,7 +305,7 @@ def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges, nAdvertis
     std = []
     check = []
     advertisersBids = []
-    randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
+    randomChangingCurves, randomChangingPoints = generateRandomChangingCurve(minBid, maxBid, numBids, T, numChanges, False)
     randomChangingPoints = np.append(randomChangingPoints, T)
     for curve in range(len(randomChangingPoints) - 1):
         for t in range(randomChangingPoints[curve], randomChangingPoints[curve + 1]):
@@ -280,7 +327,7 @@ def generateRandomChangingBids(minBid, maxBid, numBids, T, numChanges, nAdvertis
 def generateRandomChangingBids3(minBid, maxBid, numBids, T, numChanges):
     mu = []
     std = []
-    randomChangingCurves, randomChangingPoints = generateRandomChangingDemandCurve(minBid, maxBid, numBids, T, numChanges, False)
+    randomChangingCurves, randomChangingPoints = generateRandomChangingCurve(minBid, maxBid, numBids, T, numChanges, False)
     for curve in range(len(randomChangingPoints)):
         for t in range(randomChangingPoints[curve-1],randomChangingPoints[curve]):
             mu.append(randomChangingCurves[curve, np.random.randint(numBids)])

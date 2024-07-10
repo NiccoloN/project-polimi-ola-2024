@@ -15,7 +15,7 @@ class StochasticEnvironment:
         return nSales_t, profit_t
 
 
-def generateRandomDemandCurve(minPrice, maxPrice, numPrices):
+def generateRandomDescendingCurve(minPrice, maxPrice, numPrices):
     curve = np.zeros(numPrices)
     start = 0
     factor1 = random.choice([15, 20, 25, 30])
@@ -28,6 +28,18 @@ def generateRandomDemandCurve(minPrice, maxPrice, numPrices):
     curve = curve / np.max(curve)
     return curve
 
+def curveWithPeakEquation(param1, param2, param3, x):
+    return (param1 * np.log(x)) ** 2 - param2 * np.sin(x) - x ** 2 + param3 * x
+
+def generateRandomCurveWithPeak(minPrice, maxPrice, numPrices):
+    curve = np.zeros(numPrices)
+
+    param1 = random.uniform(0.35, 0.65)
+
+
+    initialGuess = 3
+    finalValue = fsolve(curveWithPeakEquation)
+
 
 def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, plot):
     changePoints = np.random.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
@@ -36,7 +48,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
     sortedChangePoints = np.sort(changePoints)
 
     mu = np.zeros((T, numPrices))
-    demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
+    demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices)
 
     if plot:
         plt.plot(demandCurve)
@@ -46,10 +58,8 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
     changePointIndex = 0
     changePoint = 0
     for i in range(T):
-        if i == 265:
-            print("Zioporco")
         if i >= changePoint:
-            demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
+            demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices)
             if changePoint < sortedChangePoints[-1]:
                 changePointIndex += 1
                 changePoint = sortedChangePoints[changePointIndex]

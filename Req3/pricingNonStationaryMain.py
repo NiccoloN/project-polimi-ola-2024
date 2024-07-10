@@ -90,7 +90,7 @@ if __name__ == '__main__':
     envDiscretizedPrices = np.round(np.linspace(minPrice, maxPrice, envDiscretization), 5)
 
     # Environment
-    env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, envDiscretizedPrices, numDemandChanges, T, envSeed, False)
+    env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, envDiscretizedPrices, numDemandChanges, T, envSeed, True)
     sCP = env.sortedChangePoints
 
     # Clairvoyant for comparison : Best policy in Hindsight (Clairvoyant for non-stationary environment):
