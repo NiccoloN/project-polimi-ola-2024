@@ -41,18 +41,19 @@ class SecondPriceAuction(Auction):
 
 
 class MultiplicativePacingAgent:
-    def __init__(self, valuation, budget, nRounds):
+    def __init__(self, valuation, budget, T, updateRho):
         self.valuation = valuation
         self.budget = budget
-        self.eta = 1/np.sqrt(nRounds)
-        self.maxRounds = nRounds
-        self.rho = self.budget / self.maxRounds
+        self.eta = 1/np.sqrt(T)
+        self.T = T
+        self.rho = self.budget / self.T
         self.lmbd = 0
         self.t = 0
         self.totWins = 0
         self.bidHist = np.array([])
         self.utilityHist = np.array([])
         self.budgetHist = np.array([])
+        self.updateRho = updateRho
 
     def bid(self):
         if self.budget < 1:
@@ -64,10 +65,13 @@ class MultiplicativePacingAgent:
     def update(self, win, utility, cost):
         self.lmbd = np.clip(self.lmbd - self.eta * (self.rho - cost),
                             a_min=0, a_max=1 / self.rho)
+        self.t += 1
         self.budget -= cost
         self.totWins += win
         self.utilityHist = np.append(self.utilityHist, utility)
         self.budgetHist = np.append(self.budgetHist, self.budget)
+        if self.updateRho:
+            self.rho = self.budget / (self.T - self.t)
 
     def returnHistory(self):
         return self.totWins, self.bidHist, self.utilityHist, self.budgetHist
@@ -87,9 +91,9 @@ class MultiplicativePacingAgent:
 
 
 class UCBAgent:
-    def __init__(self, budget, bids, T, scaleFactor):
+    def __init__(self, budget, bids, T, scaleFactor, updateRho):
         self.budget = budget
-        self.budgetPerRound = budget / T
+        self.rho = budget / T
         self.bids = bids
         self.bidIndices = np.arange(len(bids))
         self.maxBid = max(bids)
@@ -105,7 +109,7 @@ class UCBAgent:
         self.utilityHist = np.array([])
         self.costHist = np.array([])
         self.budgetHist = np.array([])
-        self.winningBidHist = np.array([])
+        self.updateRho = updateRho
 
     def bid(self):
         if self.budget < self.maxBid:
@@ -117,13 +121,12 @@ class UCBAgent:
         self.bidHist = np.append(self.bidHist, bid)
         return bid
 
-    def update(self, win, utility, cost, winningBid):
+    def update(self, win, utility, cost):
         self.budget -= cost
         self.totWins += win
         self.utilityHist = np.append(self.utilityHist, utility)
         self.costHist = np.append(self.costHist, cost)
         self.budgetHist = np.append(self.budgetHist, self.budget)
-        self.winningBidHist = np.append(self.winningBidHist, winningBid)
 
         for bidInd in self.bidIndices:
             roundsWithBid = np.where(self.bidIndHist == bidInd)[0]
@@ -135,11 +138,14 @@ class UCBAgent:
 
         c = -self.utilityUCBs
         A_ub = self.costLCBs * np.ones((1, len(self.bids)))
-        b_ub = self.budgetPerRound
+        b_ub = self.rho
         A_eq = np.ones((1, len(self.bids)))
         b_eq = [1]
         res = optimize.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=(0, 1))
         self.gamma = res.x.T
+
+        if self.updateRho:
+            self.rho = self.budget / (self.T - self.t)
 
         self.t += 1
 
@@ -213,7 +219,7 @@ class HedgeAgent:
 
 
 class FFMultiplicativePacingAgent:
-    def __init__(self, bids_set, valuation, budget, T, eta):
+    def __init__(self, bids_set, valuation, budget, T, eta, updateRho):
         self.bids_set = bids_set
         self.K = len(bids_set)
         self.hedge = HedgeAgent(self.K, np.sqrt(np.log(self.K) / T))
@@ -224,6 +230,7 @@ class FFMultiplicativePacingAgent:
         self.rho = self.budget / self.T
         self.lmbd = 1
         self.t = 0
+        self.updateRho = updateRho
 
     def bid(self):
         if self.budget < 1:
@@ -241,7 +248,10 @@ class FFMultiplicativePacingAgent:
         self.lmbd = np.clip(self.lmbd - self.eta * (self.rho - c_t),
                             a_min=0, a_max=1 / self.rho)
         # update budget
+        self.t += 1
         self.budget -= c_t
+        if self.updateRho:
+            self.rho = self.budget / (self.T - self.t)
 
 def generateRandomChangingBids(T, nAdvertisers):
     advertisersBids = np.zeros((nAdvertisers, T))
@@ -261,7 +271,7 @@ def generateRandomChangingBids2(minBid, maxBid, numBids, T, numChanges, nAdverti
 def generateRandomChangingBids3(minBid, maxBid, numBids, T, numChanges, nAdvertisers):
     advertisersBids = np.zeros((nAdvertisers, T))
     for t in range(T):
-        mean = np.random.uniform(0,maxBid)
+        mean = np.random.uniform(0, maxBid)
         std = np.random.uniform(0, np.random.uniform(0, 1))
         advertisersBids[:, t] = np.random.normal(mean, std, nAdvertisers)
     return advertisersBids.max(axis=0), advertisersBids
