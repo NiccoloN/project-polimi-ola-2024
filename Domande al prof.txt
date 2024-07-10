@@ -1,0 +1,7 @@
+1. Nel problema di bidding in un environment in cui le max bids 
+sono stocastiche con abrupt changes, ha senso usare il clairvoyant suo
+
+2. Ha senso usare il per-round budget settato all'inizio nel bidding?
+Non sarebbe meglio aggiornare il per-round budget dopo ogni asta
+in modo tale da sfruttarlo tutto?
+

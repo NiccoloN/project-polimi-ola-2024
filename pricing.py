@@ -46,6 +46,8 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
     changePointIndex = 0
     changePoint = 0
     for i in range(T):
+        if i == 265:
+            print("Zioporco")
         if i >= changePoint:
             demandCurve = generateRandomDemandCurve(minPrice, maxPrice, numPrices)
             if changePoint < sortedChangePoints[-1]:
@@ -57,6 +59,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
             if plot:
                 plt.plot(demandCurve)
                 plt.ylim((0, maxPrice))
+                plt.title("Change at time t = " + str(i))
                 plt.show()
         mu[i, :] = demandCurve
     return mu, sortedChangePoints
@@ -65,6 +68,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
 class NonStationaryBernoulliEnvironment:
     def __init__(self, cost, minPrice, maxPrice, prices, numChanges, T, seed, plot):
         np.random.seed(seed)
+        random.seed(seed)
         self.cost = cost
         self.pricesArray = prices
         self.K = prices.size
@@ -233,10 +237,11 @@ class SWUCBAgent:
         self.W = W
         self.range = range
         self.a_t = None
-        self.armsHistory = np.zeros(T)
+        self.pricesHistory = np.array([])
         self.rewardsCache = np.repeat(np.nan, repeats=self.K * W).reshape(W, self.K)
         self.N_pulls = np.zeros(self.K)
         self.t = 0
+        self.ucbsHistory = np.zeros((self.T, self.K))
 
     def pull_arm(self):
         if self.t < self.K:
@@ -247,7 +252,8 @@ class SWUCBAgent:
             ucbs = avgRewards_w + self.range * np.sqrt(
                 2 * np.log(self.W) / nPulls_w)  # there's a typo in the slides, log(T) -> log(W)
             self.a_t = np.argmax(ucbs)
-        self.armsHistory[self.t] = self.a_t
+            self.ucbsHistory[self.t, :] = ucbs
+        self.pricesHistory = np.append(self.pricesHistory, self.discretizedPrices[self.a_t])
         return self.discretizedPrices[self.a_t]
 
     def update(self, r_t):
@@ -270,14 +276,18 @@ class CUSUMUCBAgent:
         self.range = range
         self.a_t = None
         self.lastResetTime = 0
-        self.resetTimes = np.array([0])
+        self.resetTimes = np.zeros(self.K)
         self.N_pulls = np.zeros(self.K)
         self.all_rewards = [[] for _ in np.arange(self.K)]
         self.counters = np.repeat(M, self.K)
         self.average_rewards = np.zeros(self.K)
-        self.n_resets = 0
+        self.n_resets = np.zeros(self.K)
         self.n_t = 0    # Total number of pulls
         self.t = 0
+        self.resetTimesHistory = np.array([])
+        self.pricesHistory = np.array([])
+        self.ucbsHistory = np.zeros((self.T, self.K))
+        self.ucbs = np.full(self.K, np.inf)
 
 
     def pull_arm(self):
@@ -285,14 +295,20 @@ class CUSUMUCBAgent:
             for a in np.arange(self.K):
                 if self.counters[a] > 0:
                     self.counters[a] -= 1
-                    self.a_t = a
+                    if self.t <= self.M*self.K:
+                        self.a_t = self.t % self.K
+                    else:
+                        self.a_t = a
                     break
         else:
             if np.random.random() <= 1 - self.alpha:
-                ucbs = self.average_rewards + self.range * np.sqrt(np.log(self.n_t) / self.N_pulls)
-                self.a_t = np.argmax(ucbs)
+                self.ucbs = self.average_rewards + self.range * np.sqrt(np.log(self.n_t) / self.N_pulls)
+                self.a_t = np.argmax(self.ucbs)
             else:
                 self.a_t = np.random.choice(np.arange(self.K))    # Extra exploration
+
+        self.ucbsHistory[self.t, :] = self.ucbs
+        self.pricesHistory = np.append(self.pricesHistory, self.discretizedPrices[self.a_t])
         return self.discretizedPrices[self.a_t]
 
     def update(self, r_t):
@@ -300,13 +316,15 @@ class CUSUMUCBAgent:
         self.all_rewards[self.a_t].append(r_t)
         if self.counters[self.a_t] == 0:
             if self.change_detection():
-                self.n_resets += 1
+                self.n_resets[self.a_t] += 1
                 self.N_pulls[self.a_t] = 0
                 self.average_rewards[self.a_t] = 0
                 self.counters[self.a_t] = self.M
-                self.all_rewards = [[] for _ in np.arange(self.K)]
+                self.all_rewards[self.a_t] = []
                 self.lastResetTime = self.t
-                self.resetTimes = np.append(self.resetTimes, self.t)
+                self.resetTimes[self.a_t] = self.t
+                self.resetTimesHistory = np.append(self.resetTimesHistory, self.t)
+                self.ucbs[self.a_t] = np.inf
 
             else:
                 self.average_rewards[self.a_t] += (r_t - self.average_rewards[self.a_t]) / self.N_pulls[self.a_t]
