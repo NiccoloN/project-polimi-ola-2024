@@ -49,13 +49,13 @@ if __name__ == '__main__':
     numTrials = 2
 
     # EXP3 agent parameters
-    discretization = np.floor(1 / (T ** (-1 / 3)) + 1)
+    discretization = np.floor(1 / ((T/10) ** (-1 / 3)) + 1)
     discretization = discretization.astype(int) + 2
     discretizedPrices = np.round(np.linspace(minPrice, maxPrice, discretization), 5)
     discretizedPrices = discretizedPrices[1:-1]
 
     # Environment
-    env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, discretizedPrices, numDemandChanges, T, envSeed, False)
+    env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, discretizedPrices, numDemandChanges, T, envSeed, True)
     sCP = env.sortedChangePoints
 
     # Execute trials and rounds
