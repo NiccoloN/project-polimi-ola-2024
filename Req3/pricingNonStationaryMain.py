@@ -12,22 +12,17 @@ def testEnv(env, numTests, discretizedPrices):
     profitMean = profit.mean(axis=0)
     return profitMean
 
-def testAgent(agent, T, seed, clairvoyantRewards, nCustomers, title):
-    np.random.seed(seed)
-    random.seed(seed)
+def testAgent(env, agent, T, specificClairvoyantRewards, generalClairvoyantRewards, nCustomers, title):
+    env.reset()
     agentRewards = np.zeros(T)
     for t in range(T):
         price_t = agent.pull_arm()
-        np.random.seed(t)
-        random.seed(t)
         demand_t, reward_t = env.round(price_t, nCustomers)
-        np.random.seed(seed)
-        random.seed(seed)
         agent.update(reward_t / nCustomers)
         agentRewards[t] = reward_t
-
-    plt.plot(np.arange(T), agentRewards, label="Agent rewards")
-    plt.plot(np.arange(T), clairvoyantRewards, label="Clairvoyant rewards")
+    '''
+    plt.plot(np.arange(T), agentRewards, ".", label="Agent rewards")
+    plt.plot(np.arange(T), specificClairvoyantRewards, label="Clairvoyant rewards")
     if hasattr(agent, "resetTimesHistory"):
         for x in cumSumUcbAgent.resetTimesHistory:
             plt.axvline(x, linestyle='--', color='r')
@@ -36,7 +31,8 @@ def testAgent(agent, T, seed, clairvoyantRewards, nCustomers, title):
     plt.title(title)
     plt.legend()
     plt.show()
-    return np.cumsum(clairvoyantRewards - agentRewards)
+    '''
+    return np.cumsum(specificClairvoyantRewards - agentRewards), np.cumsum(generalClairvoyantRewards - agentRewards)
 
 def getClairvoyantRewards(agentDiscetizedPrices, env):
     discretizedMuInd = np.linspace(0, env.K-1, agentDiscetizedPrices.size+2)[1:-1].astype(int)
@@ -49,19 +45,19 @@ def getClairvoyantRewards(agentDiscetizedPrices, env):
 
 
 if __name__ == '__main__':
-    envSeed = 2
-    np.random.seed(envSeed)
-    random.seed(envSeed)
+    envSeed = 50
+    np.random.seed(1)
+    random.seed(1)
     cost = 0.2
     minPrice = cost
     maxPrice = 1
     nCustomers = 100
     priceRange = maxPrice - minPrice
-    rewardRange = priceRange/10*4
+    rewardRange = priceRange/10
 
-    T = 1000
+    T = 5000
     numDemandChanges = 5
-    numTrials = 2
+    numTrials = 1
 
     # UCB1 agent parameters
     ucb1Discretization = np.floor(1 / (T ** (-1 / 3)) + 1)
@@ -77,7 +73,7 @@ if __name__ == '__main__':
     swDiscretizedPrices = swDiscretizedPrices[1:-1]
 
     # In case of CUMSUM UCB we use T/numDemandChanges
-    h = 2 * np.log(T / numDemandChanges)                # Sensitivity of detection, threshold for cumulative deviation
+    h = 0.5 * np.log(T / numDemandChanges)                # Sensitivity of detection, threshold for cumulative deviation
     M = int(np.log(T / numDemandChanges))               # Robustness of change detection
     alpha = np.sqrt(numDemandChanges * np.log(T / numDemandChanges) / T)              # Probability of extra exploration
     cumSumDiscretization = np.floor(1 / ((T / numDemandChanges) ** (-1 / 3)) + 1)
@@ -90,29 +86,31 @@ if __name__ == '__main__':
     envDiscretizedPrices = np.round(np.linspace(minPrice, maxPrice, envDiscretization), 5)
 
     # Environment
-    env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, envDiscretizedPrices, numDemandChanges, T, envSeed, True)
+    env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, envDiscretizedPrices, numDemandChanges, T, envSeed, False)
     sCP = env.sortedChangePoints
 
     # Clairvoyant for comparison : Best policy in Hindsight (Clairvoyant for non-stationary environment):
-    clairvoyantRewards = np.array(np.matmul(env.mu, np.diag(envDiscretizedPrices - cost)) * nCustomers).max(axis=1)  # we take the max over every single round
-    clairvoyantPolicy = np.array(np.matmul(env.mu, np.diag(envDiscretizedPrices - cost))).argmax(axis=1)
-
-    # Clairvoyants for each algorithm:
+    generalClairvoyantRewards = np.array(np.matmul(env.mu, np.diag(envDiscretizedPrices - cost)) * nCustomers).max(axis=1)  # we take the max over every single round
+    generalClairvoyantPolicy = np.array(np.matmul(env.mu, np.diag(envDiscretizedPrices - cost))).argmax(axis=1)
 
     # Execute trials and rounds
     ucb1Regret = np.zeros((numTrials, T))
+    ucb1GeneralRegret = np.zeros((numTrials, T))
     swUcbRegret = np.zeros((numTrials, T))
+    swUcbGeneralRegret = np.zeros((numTrials, T))
     cumSumUcbRegret = np.zeros((numTrials, T))
+    cumSumUcbGeneralRegret = np.zeros((numTrials, T))
     for trial in range(numTrials):
+        np.random.seed(trial)
+        random.seed(trial)
         # UCB1 Agent for comparison
-        env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, envDiscretizedPrices, numDemandChanges, T, envSeed, False)
         ucb1Agent = SWUCBAgent(ucb1DiscretizedPrices, T, T, range=rewardRange)
         ucb1ClairvoyantRewards, ucb1ClairvoyantPrices = getClairvoyantRewards(ucb1DiscretizedPrices, env)
-        ucb1Regret[trial, :] = testAgent(ucb1Agent, T, trial, ucb1ClairvoyantRewards, nCustomers, "UCB1 rewards")
+        ucb1Regret[trial, :], ucb1GeneralRegret[trial, :] = testAgent(env, ucb1Agent, T, ucb1ClairvoyantRewards, generalClairvoyantRewards, nCustomers, "UCB1 rewards")
         print("ucb1 " + str(trial + 1))
-
+        '''
         # Price history of UCB1
-        plt.plot(np.arange(T), ucb1Agent.pricesHistory, label="Agent Prices")
+        plt.plot(np.arange(T), ucb1Agent.pricesHistory, ".", label="Agent Prices")
         plt.plot(np.arange(T), ucb1ClairvoyantPrices, label="Clairvoyant Prices")
         for x in sCP:
             plt.axvline(x, linestyle='--', color='g')
@@ -135,23 +133,22 @@ if __name__ == '__main__':
         plt.ylabel("Regret")
         plt.title("UCB1 regret")
         plt.show()
-
+        '''
         # SW UCB Agent
-        env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, envDiscretizedPrices, numDemandChanges, T, envSeed, False)
         swUcbAgent = SWUCBAgent(swDiscretizedPrices, T, W, range=rewardRange)
         swClairvoyantRewards, swClairvoyantPrices = getClairvoyantRewards(swDiscretizedPrices, env)
-        swUcbRegret[trial, :] = testAgent(swUcbAgent, T, trial, swClairvoyantRewards, nCustomers, "SW UCB rewards")
+        swUcbRegret[trial, :], swUcbGeneralRegret[trial, :] = testAgent(env, swUcbAgent, T, swClairvoyantRewards, generalClairvoyantRewards, nCustomers, "SW UCB rewards")
         print("swUcb " + str(trial + 1))
-
+        '''
         # Price history of SW UCB
-        plt.plot(np.arange(T), swUcbAgent.pricesHistory, label="Agent Prices")
+        plt.plot(np.arange(T), swUcbAgent.pricesHistory, ".", label="Agent Prices")
         plt.plot(np.arange(T), swClairvoyantPrices, label="Clairvoyant Prices")
         for x in sCP:
             plt.axvline(x, linestyle='--', color='g')
         plt.title("SW UCB agent prices, trial " + str(trial))
         plt.legend()
         plt.show()
-
+        
         # UCBs history of SW UCB
         for x in range(swUcbAgent.K): plt.plot(np.arange(T), swUcbAgent.ucbsHistory[:, x])
         for x in sCP:
@@ -169,16 +166,15 @@ if __name__ == '__main__':
         plt.ylabel("Regret")
         plt.title("SW UCB regret, trial = " + str(trial))
         plt.show()
-
+        '''
         # CumSum UCB Agent
-        env = NonStationaryBernoulliEnvironment(cost, minPrice, maxPrice, envDiscretizedPrices, numDemandChanges, T, envSeed, False)
         cumSumUcbAgent = CUSUMUCBAgent(cumSumDiscretizedPrices, T, M, h, range=rewardRange)
         cumSumClairvoyantRewards, cumSumClairvoyantPrices = getClairvoyantRewards(cumSumDiscretizedPrices, env)
-        cumSumUcbRegret[trial, :] = testAgent(cumSumUcbAgent, T, trial, cumSumClairvoyantRewards, nCustomers, "CUMSUM UCB rewards")
+        cumSumUcbRegret[trial, :], cumSumUcbGeneralRegret[trial, :] = testAgent(env, cumSumUcbAgent, T, cumSumClairvoyantRewards, generalClairvoyantRewards, nCustomers, "CUMSUM UCB rewards")
         print("cumSumUcb " + str(trial + 1))
-
+        '''
         # Price history of CUMSUM UCB
-        plt.plot(np.arange(T), cumSumUcbAgent.pricesHistory, label="Agent Prices")
+        plt.plot(np.arange(T), cumSumUcbAgent.pricesHistory, ".", label="Agent Prices")
         plt.plot(np.arange(T), cumSumClairvoyantPrices, label="Clairvoyant Prices")
         for x in sCP:
             plt.axvline(x, linestyle='--', color='g')
@@ -206,45 +202,27 @@ if __name__ == '__main__':
         plt.ylabel("Regret")
         plt.title("CUMSUM UCB regret")
         plt.show()
-
-    ucb1AverageRegret = ucb1Regret.mean(axis=0)
-    ucb1RegretStd = ucb1Regret.std(axis=0)
+        '''
+    ucb1SpecificAvRegret = ucb1Regret.mean(axis=0)
+    ucb1SpecRegretStd = ucb1Regret.std(axis=0)
+    ucb1GeneralAvRegret = ucb1GeneralRegret.mean(axis=0)
+    ucb1GeneralRegretStd = ucb1GeneralRegret.std(axis=0)
 
     swUcbAverageRegret = swUcbRegret.mean(axis=0)
     swUcbRegretStd = swUcbRegret.std(axis=0)
+    swUcbGeneralAvRegret = swUcbGeneralRegret.mean(axis=0)
+    swUcbGeneralRegretStd = swUcbGeneralRegret.std(axis=0)
 
     cumSumUcbAverageRegret = cumSumUcbRegret.mean(axis=0)
     cumSumUcbRegretStd = cumSumUcbRegret.std(axis=0)
-
-    '''
-    # Comparison graph
-    plt.plot(np.arange(T), ucb1AverageRegret, label="UCB1 Average Regret")
-    plt.fill_between(np.arange(T),
-                     ucb1AverageRegret - ucb1RegretStd / np.sqrt(numTrials),
-                     ucb1AverageRegret + ucb1RegretStd / np.sqrt(numTrials),
-                     alpha=0.3)
-    plt.plot(np.arange(T), swUcbAverageRegret, label="SW UCB Average Regret")
-    plt.fill_between(np.arange(T),
-                     swUcbAverageRegret - swUcbRegretStd / np.sqrt(numTrials),
-                     swUcbAverageRegret + swUcbRegretStd / np.sqrt(numTrials),
-                     alpha=0.3)
-    plt.plot(np.arange(T), cumSumUcbAverageRegret, label="CUMSUM UCB Average Regret")
-    plt.fill_between(np.arange(T),
-                     cumSumUcbAverageRegret - cumSumUcbRegretStd / np.sqrt(numTrials),
-                     cumSumUcbAverageRegret + cumSumUcbRegretStd / np.sqrt(numTrials),
-                     alpha=0.3)
-    for x in sCP:
-        plt.axvline(x, linestyle='--', color='g')
-    plt.xlabel("$t$")
-    plt.ylabel("Regret")
-    plt.legend()
-    plt.show()
+    cumSumUcbGeneralAvRegret = cumSumUcbGeneralRegret.mean(axis=0)
+    cumSumUcbGeneralRegretStd = cumSumUcbGeneralRegret.std(axis=0)
 
     # Ucb1 regret
-    plt.plot(np.arange(T), ucb1AverageRegret, label="SW UCB Average Regret")
+    plt.plot(np.arange(T), ucb1SpecificAvRegret, label="SW UCB Average Regret")
     plt.fill_between(np.arange(T),
-                     ucb1AverageRegret - ucb1RegretStd / np.sqrt(numTrials),
-                     ucb1AverageRegret + ucb1RegretStd / np.sqrt(numTrials),
+                     ucb1SpecificAvRegret - ucb1SpecRegretStd / np.sqrt(numTrials),
+                     ucb1SpecificAvRegret + ucb1SpecRegretStd / np.sqrt(numTrials),
                      alpha=0.3)
     for x in sCP:
         plt.axvline(x, linestyle='--', color='g')
@@ -268,7 +246,44 @@ if __name__ == '__main__':
     plt.ylabel("Regret")
     plt.title("SW UCB regret")
     plt.show()
-    '''
+
+    # CumSum Agent regret
+    plt.plot(np.arange(T), cumSumUcbAverageRegret, label="CUMSUM UCB Average Regret")
+    plt.fill_between(np.arange(T),
+                     cumSumUcbAverageRegret - cumSumUcbRegretStd / np.sqrt(numTrials),
+                     cumSumUcbAverageRegret + cumSumUcbRegretStd / np.sqrt(numTrials),
+                     alpha=0.3)
+    for x in sCP:
+        plt.axvline(x, linestyle='--', color='g')
+    for x in cumSumUcbAgent.resetTimesHistory:
+        plt.axvline(x, linestyle='--', color='r')
+    plt.xlabel("$t$")
+    plt.ylabel("Regret")
+    plt.title("CUMSUM UCB regret")
+    plt.show()
+
+    # Comparison graph
+    plt.plot(np.arange(T), ucb1GeneralAvRegret, label="UCB1 Average Regret")
+    plt.fill_between(np.arange(T),
+                     ucb1GeneralAvRegret - ucb1GeneralRegretStd / np.sqrt(numTrials),
+                     ucb1GeneralAvRegret + ucb1GeneralRegretStd / np.sqrt(numTrials),
+                     alpha=0.3)
+    plt.plot(np.arange(T), swUcbGeneralAvRegret, label="SW UCB Average Regret")
+    plt.fill_between(np.arange(T),
+                     swUcbGeneralAvRegret - swUcbGeneralRegretStd / np.sqrt(numTrials),
+                     swUcbGeneralAvRegret + swUcbGeneralRegretStd / np.sqrt(numTrials),
+                     alpha=0.3)
+    plt.plot(np.arange(T), cumSumUcbGeneralAvRegret, label="CUMSUM UCB Average Regret")
+    plt.fill_between(np.arange(T),
+                     cumSumUcbGeneralAvRegret - cumSumUcbGeneralRegretStd / np.sqrt(numTrials),
+                     cumSumUcbGeneralAvRegret + cumSumUcbGeneralRegretStd / np.sqrt(numTrials),
+                     alpha=0.3)
+    for x in sCP:
+        plt.axvline(x, linestyle='--', color='g')
+    plt.xlabel("$t$")
+    plt.ylabel("Regret")
+    plt.legend()
+    plt.show()
 
 
 

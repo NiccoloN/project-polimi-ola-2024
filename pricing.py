@@ -2,6 +2,7 @@ import math
 import random
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy.optimize import fsolve
 
 
 class StochasticEnvironment:
@@ -20,19 +21,45 @@ class StochasticEnvironment:
         self.rng.seed(self.seed)
 
 
-def curveWithPeakEquation(param1, param2, param3, x):
+def curveWithPeakEquation(x, param1, param2, param3):
     return (param1 * np.log(x)) ** 2 - param2 * np.sin(x) - x ** 2 + param3 * x
 
-
-def generateRandomCurveWithPeak(minPrice, maxPrice, numPrices):
+def generateRandomCurveWithPeak(minPrice, maxPrice, numPrices, rng):
     curve = np.zeros(numPrices)
 
-    param1 = random.uniform(0.35, 0.65)
-
+    param1 = rng.uniform(0.35, 0.65)
+    param2 = rng.uniform(0.1, 1.0)
+    param3 = rng.uniform(2.0, 4.0)
 
     initialGuess = 3
-    finalValue = fsolve(curveWithPeakEquation)
+    finalValue = fsolve(curveWithPeakEquation, initialGuess, (param1, param2, param3))
+    initialValue = 0.02
 
+    for ind, x in enumerate(np.linspace(initialValue, finalValue, num=numPrices)):
+        curve[ind] = curveWithPeakEquation(x, param1, param2, param3)
+
+    curve = curve - np.min(curve)
+    curve = curve / np.max(curve)
+    return curve
+
+def convexCurveEquation(x, param1, param2):
+    return param1 * 2.71 ** (-x ** param2)
+
+def generateRandomConvexCurve(minPrice, maxPrice, numPrices, rng):
+    curve = np.zeros(numPrices)
+
+    param1 = rng.uniform(0.5, 3.0)
+    param2 = rng.uniform(0.8, 1.6)
+
+    initialValue = 0.02
+    finalValue = 2.0
+
+    for ind, x in enumerate(np.linspace(initialValue, finalValue, num=numPrices)):
+        curve[ind] = convexCurveEquation(x, param1, param2)
+
+    curve = curve - np.min(curve)
+    curve = curve / np.max(curve)
+    return curve
 
 def generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng):
     curve = np.zeros(numPrices)
@@ -55,7 +82,17 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
     sortedChangePoints = np.sort(changePoints)
 
     mu = np.zeros((T, numPrices))
-    demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng)
+
+    convexCurveProbability = 0.4
+    curveWithPeakProbability = 0.3
+
+    randomValue = rng.random()
+    if randomValue <= curveWithPeakProbability:
+        demandCurve = generateRandomCurveWithPeak(minPrice, maxPrice, numPrices, rng)
+    elif randomValue <= convexCurveProbability + curveWithPeakProbability:
+        demandCurve = generateRandomConvexCurve(minPrice, maxPrice, numPrices, rng)
+    else:
+        demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng)
 
     if plot:
         plt.plot(demandCurve)
@@ -66,7 +103,14 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
     changePoint = 0
     for i in range(T):
         if i >= changePoint:
-            demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng)
+            randomValue = rng.random()
+            if randomValue <= curveWithPeakProbability:
+                demandCurve = generateRandomCurveWithPeak(minPrice, maxPrice, numPrices, rng)
+            elif randomValue <= convexCurveProbability+curveWithPeakProbability:
+                demandCurve = generateRandomConvexCurve(minPrice, maxPrice, numPrices, rng)
+            else:
+                demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng)
+
             if changePoint < sortedChangePoints[-1]:
                 changePointIndex += 1
                 changePoint = sortedChangePoints[changePointIndex]
