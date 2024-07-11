@@ -1,23 +1,48 @@
+from Req2.biddingAdversarialMain import *
 from pricing import *
 import numpy as np
 
 
-def testAgent(agent, T, clairvoyantRewards, nCustomers, env, title):
+def testAgent(agent, T, env, title):
     agentRewards = np.zeros(T)
     env.reset()
 
+    nCustomersArray = np.zeros(T)
+    priceProbabilities = np.zeros((T, len(agentDiscretizedPrices)))
     for t in range(T):
         price_t = agent.pull_arm()
-        demand_t, reward_t = env.round(price_t, nCustomers)
-        agent.update(reward_t / nCustomers)
-        agentRewards[t] = reward_t / nCustomers
+        print("price at day " + str(t) + ": " + str(price_t))
+        valuation_t = np.clip(agent.getEstimatedRewardMean()[np.where(agentDiscretizedPrices == price_t)], 0, price_t)[0]
+        print("valuation: " + str(valuation_t))
+        nCustomers_t = biddingAdversarial(valuation_t, 1000, 1, 50, False, t)
+        nCustomersArray[t] = nCustomers_t
+        print("nCustomers: " + str(nCustomers_t))
+        demand_t, reward_t = env.round(price_t, nCustomers_t)
+        if nCustomers_t == 0 or demand_t == 0:
+            agent.update(0)
+            agentRewards[t] = 0
+        else:
+            agent.update(reward_t / nCustomers_t)
+            agentRewards[t] = reward_t / nCustomers_t
+        priceProbabilities[t, :] = agent.x_t
+        print("reward: " + str(agentRewards[t]))
+        print(" ")
+
+    # Clairvoyant
+    clairvoyantPrice, clairvoyantRewards = getAdversarialClairvoyant(agentDiscretizedPrices, T, env, nCustomersArray)
 
     plt.plot(np.arange(T), agentRewards, ".", label="Agent rewards")
     plt.plot(np.arange(T), clairvoyantRewards, ".", label="Clairvoyant rewards")
     plt.title(title)
     plt.legend()
     plt.show()
-    return np.cumsum(clairvoyantRewards - agentRewards)
+
+    for i, price in enumerate(agentDiscretizedPrices):
+        plt.plot(np.arange(T), priceProbabilities[:, i], ".", label="Price " + str(price))
+    plt.title('price probabilities')
+    plt.legend()
+    plt.show()
+    return np.cumsum(clairvoyantRewards - agentRewards), clairvoyantPrice
 
 
 if __name__ == '__main__':
@@ -28,13 +53,12 @@ if __name__ == '__main__':
     cost = 0.2
     minPrice = cost
     maxPrice = 1
-    nCustomers = 100
     priceRange = maxPrice - minPrice
     rewardRange = priceRange/10*4
 
-    T = 10000
+    T = 100
     numDemandChanges = T-1
-    numTrials = 2
+    numTrials = 1
 
     # EXP3 agent parameters
     discretization = np.floor(1 / ((T/10) ** (-1 / 3)) + 1)
@@ -57,10 +81,7 @@ if __name__ == '__main__':
         # EXP3 Agent
         exp3Agent = EXP3Agent(agentDiscretizedPrices, T, np.sqrt(np.log(discretization) / (discretization * T)))
 
-        # Clairvoyant
-        clairvoyantPrice, clairvoyantRewards = getAdversarialClairvoyant(agentDiscretizedPrices, T, env, np.repeat(nCustomers, T))
-
-        exp3Regret[trial, :] = testAgent(exp3Agent, T, clairvoyantRewards, nCustomers, env, "EXP3 rewards")
+        exp3Regret[trial, :], clairvoyantPrice = testAgent(exp3Agent, T, env, "EXP3 rewards")
         print("exp3 " + str(trial + 1))
 
         # Price history of EXP3

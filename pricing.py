@@ -302,7 +302,7 @@ class EXP3Agent:
         self.weights = np.ones(self.K)
         self.a_t = None
         self.x_t = np.ones(self.K) / self.K
-        self.N_pulls = np.zeros(self.K)
+        self.nPulls = np.zeros(self.K)
         self.pricesHistory = np.zeros(T)
         self.t = 0
 
@@ -316,8 +316,24 @@ class EXP3Agent:
         l_t = 1 - r_t
         l_t_tilde = l_t / self.x_t[self.a_t]
         self.weights[self.a_t] *= np.exp(-self.learning_rate * l_t_tilde)
-        self.N_pulls[self.a_t] += 1
+        self.nPulls[self.a_t] += 1
         self.t += 1
+
+    def getEstimatedRewardMean(self):
+        return self.weights
+
+
+def getAdversarialClairvoyant(discretizedPrices, T, env, nCustomersArray):
+    rewards = np.zeros((len(discretizedPrices), T))
+
+    for i, price in enumerate(discretizedPrices):
+        env.reset()
+        for t in range(T):
+            demand_t, rewards[i, t] = env.round(price, nCustomersArray[t])
+
+    env.reset()
+    bestPriceIndex = np.argmax(rewards.sum(axis=1))
+    return discretizedPrices[bestPriceIndex], rewards[bestPriceIndex, :] / nCustomersArray
 
 
 class SWUCBAgent:

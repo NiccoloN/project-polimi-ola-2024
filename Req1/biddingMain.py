@@ -37,10 +37,10 @@ def bidding(myValuation, othersValuation, T, numTrials, budget, showPlots, seed)
             np.random.seed(trial*1000 + seed)
 
             # Multiplicative pacing agent
-            mpAgent = MultiplicativePacingAgent(myValuation, budget, T)
+            mpAgent = MultiplicativePacingAgent(myValuation, budget, T, True)
 
             # UCB like agent
-            ucbAgent = UCBAgent(budget, bids, T, 0.016)
+            ucbAgent = UCBAgent(budget, bids, T, 0.016, True)
 
             # Auction for MP agent
             for aucInd in range(T):
@@ -73,9 +73,9 @@ def bidding(myValuation, othersValuation, T, numTrials, budget, showPlots, seed)
             ucbRegretArray[trial, :] = np.cumsum(clairvoyantUtilities - ucbUtilityHist)
 
             if showPlots:
-                plt.plot(highestBids, label="Other Bids")
-                plt.plot(mpBidHist, label="MP Agent Bids")
-                plt.plot(ucbBidHist, label="UCB Agent Bids")
+                plt.plot(highestBids, '.', label="Max Bids From Others")
+                plt.plot(mpBidHist, '.', label="MP Agent Bids")
+                plt.plot(ucbBidHist, '.', label="UCB Agent Bids")
                 plt.legend()
                 plt.xlabel('$t$')
                 plt.ylabel('$Bids$')
@@ -116,4 +116,4 @@ def bidding(myValuation, othersValuation, T, numTrials, budget, showPlots, seed)
 
 
 if __name__ == '__main__':
-    bidding(0.8, 0.6, 1000, 10, 200, True, 0)
+    bidding(0.8, 0.6, 1000, 1, 200, True, 0)

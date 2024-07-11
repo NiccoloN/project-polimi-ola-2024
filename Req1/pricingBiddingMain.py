@@ -1,7 +1,6 @@
-import numpy as np
-
 from pricing import *
 from Req1.biddingMain import *
+
 
 def testAgent(agent, T, seed):
     np.random.seed(seed)

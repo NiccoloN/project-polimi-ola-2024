@@ -62,7 +62,7 @@ class MultiplicativePacingAgent:
         self.bidHist = np.append(self.bidHist, bid)
         return bid
 
-    def update(self, win, utility, cost):
+    def update(self, win, utility, cost, foo=None):
         self.lmbd = np.clip(self.lmbd - self.eta * (self.rho - cost),
                             a_min=0, a_max=1 / self.rho)
         self.t += 1
@@ -121,7 +121,7 @@ class UCBAgent:
         self.bidHist = np.append(self.bidHist, bid)
         return bid
 
-    def update(self, win, utility, cost):
+    def update(self, win, utility, cost, foo=None):
         self.budget -= cost
         self.totWins += win
         self.utilityHist = np.append(self.utilityHist, utility)
@@ -183,16 +183,18 @@ def getTruthfulClairvoyant(budget, myValuation, maxBids, nRounds):
     return clairvoyantBidding, clairvoyantUtilities, clairvoyantPayments
 
 
-class FirstPriceAuction(Auction):
-    def __init__(self, clickThroughRates):
+class GeneralizedFirstPriceAuction(Auction):
+    def __init__(self, nSlots, clickThroughRates):
+        self.nSlots = nSlots
         self.clickThroughRates = clickThroughRates
         self.nAds = len(self.clickThroughRates)
 
     def getWinners(self, bids):
         adValues = self.clickThroughRates * bids
         adRanking = np.argsort(adValues)
-        winner = adRanking[-1]
-        return winner, adValues
+        winners = adRanking[self.nAds-self.nSlots:self.nAds]
+        winners = winners[adValues[winners] != 0]
+        return winners, adValues
 
     def getPaymentsPerClick(self, winners, values, bids):
         payment = bids[winners]
@@ -237,7 +239,7 @@ class FFMultiplicativePacingAgent:
             return 0
         return self.bids_set[self.hedge.pull_arm()]
 
-    def update(self, f_t, c_t, m_t):
+    def update(self, win, f_t, c_t, m_t):
         # update hedge
         f_t_full = np.array([(self.valuation - b) * int(b >= m_t) for b in self.bids_set])
         c_t_full = np.array([b * int(b >= m_t) for b in self.bids_set])
@@ -253,25 +255,26 @@ class FFMultiplicativePacingAgent:
         if self.updateRho:
             self.rho = self.budget / (self.T - self.t)
 
-def generateRandomChangingBids(T, nAdvertisers):
+
+def generateRandomChangingBids(T, nAdvertisers, rng):
     advertisersBids = np.zeros((nAdvertisers, T))
     for t in range(T):
-        newMaxBid = np.clip(abs(np.random.normal(0.4 * math.sin(t / 1) + 0.6, 0.1)), 0, 1)
-        advertisersBids[:,t] = np.random.uniform(0,newMaxBid, nAdvertisers)
-        #advertisersBids[:,t] = np.random.uniform(minBid, maxBid, nAdvertisers)
+        newMaxBid = np.clip(abs(rng.normal(0.4 * math.sin(t / 1) + 0.6, 0.1)), 0, 1)
+        advertisersBids[:, t] = rng.uniform(0, newMaxBid, nAdvertisers)
     return advertisersBids.max(axis=0), advertisersBids
 
 
-def generateRandomChangingBids2(minBid, maxBid, numBids, T, numChanges, nAdvertisers):
-    pattern = lambda t: 1 - np.abs(np.sin(10 * t / T))
-    other_bids = np.array([np.random.uniform(0, pattern(t), size=nAdvertisers) for t in range(T)]).T
-    return other_bids.max(axis=0), other_bids
+def getAdversarialNonTruthfulClairvoyant(T, possibleBids, m_t, myValuation, rho):
+    winProbabilities = np.array([sum(b > m_t) / T for b in possibleBids])
 
-
-def generateRandomChangingBids3(minBid, maxBid, numBids, T, numChanges, nAdvertisers):
-    advertisersBids = np.zeros((nAdvertisers, T))
-    for t in range(T):
-        mean = np.random.uniform(0, maxBid)
-        std = np.random.uniform(0, np.random.uniform(0, 1))
-        advertisersBids[:, t] = np.random.normal(mean, std, nAdvertisers)
-    return advertisersBids.max(axis=0), advertisersBids
+    # Linear Program
+    c = -(myValuation - possibleBids) * winProbabilities
+    A_ub = [possibleBids * winProbabilities]
+    b_ub = [rho]
+    A_eq = [np.ones(len(possibleBids))]
+    b_eq = [1]
+    res = optimize.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=(0, 1))
+    gamma = res.x
+    expectedClairvoyantUtilities = [-res.fun for u in range(T)]
+    expectedClairvoyantBids = [sum(possibleBids * gamma) for u in range(T)] # (possibleBids * gamma * winProbabilities)?
+    return expectedClairvoyantUtilities, expectedClairvoyantBids
