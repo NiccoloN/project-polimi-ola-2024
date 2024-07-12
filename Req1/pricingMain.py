@@ -1,3 +1,4 @@
+import random
 from pricing import *
 
 
@@ -6,7 +7,8 @@ def testAgent(env, agent, T, expectedClairvoyantRewards):
     agentRewards = np.zeros(T)
     for t in range(T):
         price_t = agent.pull_arm()
-        demand_t, reward_t = env.round(price_t, nCustomers)
+        print("Price at day " + str(t) + ": " + str(price_t))
+        demand_t, reward_t = env.round([price_t], nCustomers)
         agent.update(reward_t / nCustomers, False)
         agentRewards[t] = reward_t
 
@@ -16,7 +18,7 @@ def testAgent(env, agent, T, expectedClairvoyantRewards):
 if __name__ == '__main__':
     random.seed(1)
     np.random.seed(1)
-    envSeed = 50
+    envSeed = 4
 
     cost = 0.2
     minPrice = cost
@@ -29,32 +31,33 @@ if __name__ == '__main__':
     reward_function = lambda price, n_sales: (price - cost) * n_sales
 
     T = 100
-    numTrials = 5
-    env = StochasticEnvironment(conversionProbability, cost, envSeed)
+    numTrials = 1
+    env = StochasticEnvironment([conversionProbability], [cost], envSeed)
 
     # clairvoyant
-    profit_curve = reward_function(discretizedPrices, nCustomers * conversionProbability(discretizedPrices))
-    best_price_index = np.argmax(profit_curve)
-    best_price = discretizedPrices[best_price_index]
-    expectedClairvoyantRewards = np.repeat(profit_curve[best_price_index], T)
+    profitCurve = reward_function(discretizedPrices, nCustomers * conversionProbability(discretizedPrices))
+    bestPriceIndex = np.argmax(profitCurve)
+    bestPrice = discretizedPrices[bestPriceIndex]
+    print("Best price: " + str(bestPrice))
+    expectedClairvoyantRewards = np.repeat(profitCurve[bestPriceIndex], T)
 
     ucbRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
-        ucbAgent = GPUCBAgent(T, discretization, minPrice, maxPrice)
+        print("\nGPUCB trial " + str(trial + 1))
+        ucbAgent = GPUCBAgent(T, discretization, [minPrice], [maxPrice])
         ucbRegretPerTrial[trial, :] = testAgent(env, ucbAgent, T, expectedClairvoyantRewards)
-        print("ucb " + str(trial + 1))
 
     tsRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
-        tsAgent = GPTSAgent(T, discretization, minPrice, maxPrice)
+        print("\nGPTS trial " + str(trial + 1))
+        tsAgent = GPTSAgent(T, discretization, [minPrice], [maxPrice])
         tsRegretPerTrial[trial, :] = testAgent(env, tsAgent, T, expectedClairvoyantRewards)
-        print("ts " + str(trial + 1))
 
-    clairvoyantRegretPerTrial = np.zeros((numTrials, T))
+    bestPriceRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
-        clairvoyantAgent = ClairvoyantAgent(best_price, discretizedPrices, conversionProbability)
-        clairvoyantRegretPerTrial[trial, :] = testAgent(env, clairvoyantAgent, T, expectedClairvoyantRewards)
-        print("clairvoyant " + str(trial + 1))
+        print("\nBest price trial " + str(trial + 1))
+        bestPriceAgent = BestPriceAgent(bestPrice, discretizedPrices, conversionProbability)
+        bestPriceRegretPerTrial[trial, :] = testAgent(env, bestPriceAgent, T, expectedClairvoyantRewards)
 
     ucbAverageRegret = ucbRegretPerTrial.mean(axis=0)
     ucbRegretStd = ucbRegretPerTrial.std(axis=0)
@@ -62,13 +65,13 @@ if __name__ == '__main__':
     tsAverageRegret = tsRegretPerTrial.mean(axis=0)
     tsRegretStd = tsRegretPerTrial.std(axis=0)
 
-    clairvoyantAverageRegret = clairvoyantRegretPerTrial.mean(axis=0)
-    clairvoyantRegretStd = clairvoyantRegretPerTrial.std(axis=0)
+    bestPriceAverageRegret = bestPriceRegretPerTrial.mean(axis=0)
+    bestPriceRegretStd = bestPriceRegretPerTrial.std(axis=0)
 
     plt.plot(np.arange(T), ucbAverageRegret, label='UCB Average Regret')
     plt.plot(np.arange(T), tsAverageRegret, label='TS Average Regret')
-    plt.plot(np.arange(T), clairvoyantAverageRegret, label='Best Fixed Arm Average Regret')
-    plt.title('cumulative regret of UCB and TS')
+    plt.plot(np.arange(T), bestPriceAverageRegret, label='Best Price Average Regret')
+    plt.title('Cumulative Regret')
     plt.fill_between(np.arange(T),
                      ucbAverageRegret - ucbRegretStd / np.sqrt(numTrials),
                      ucbAverageRegret + ucbRegretStd / np.sqrt(numTrials),
@@ -78,9 +81,10 @@ if __name__ == '__main__':
                      tsAverageRegret + tsRegretStd / np.sqrt(numTrials),
                      alpha=0.3)
     plt.fill_between(np.arange(T),
-                     clairvoyantAverageRegret - clairvoyantRegretStd / np.sqrt(numTrials),
-                     clairvoyantAverageRegret + clairvoyantRegretStd / np.sqrt(numTrials),
+                     bestPriceAverageRegret - bestPriceRegretStd / np.sqrt(numTrials),
+                     bestPriceAverageRegret + bestPriceRegretStd / np.sqrt(numTrials),
                      alpha=0.3)
+    plt.ylabel('Regret')
     plt.xlabel('$t$')
     plt.legend()
     plt.show()

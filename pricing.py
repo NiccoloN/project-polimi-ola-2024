@@ -1,20 +1,26 @@
 import math
-import random
 import numpy as np
+import itertools
 from matplotlib import pyplot as plt
+from matplotlib import cm
 from scipy.optimize import fsolve
 
 
 class StochasticEnvironment:
-    def __init__(self, conversionProbability, cost, seed):
+    def __init__(self, conversionProbabilityFunctions, costs, seed):
         self.seed = seed
         self.rng = np.random.RandomState(seed)
-        self.conversionProbability = conversionProbability
-        self.cost = cost
+        self.conversionProbabilityFunctions = conversionProbabilityFunctions
+        self.costs = costs
 
-    def round(self, price_t, nCustomers_t):
-        nSales_t = self.rng.binomial(nCustomers_t, self.conversionProbability(price_t))
-        profit_t = (price_t - self.cost) * nSales_t
+    def round(self, prices_t, nCustomers_t):
+        nSales_t = np.repeat(0, len(self.conversionProbabilityFunctions))
+        profit_t = 0
+        for i, f in enumerate(self.conversionProbabilityFunctions):
+            price_t = prices_t[i]
+            cost = self.costs[i]
+            nSales_t[i] += self.rng.binomial(nCustomers_t, f(*prices_t))
+            profit_t += (price_t - cost) * nSales_t[i]
         return nSales_t, profit_t
 
     def reset(self):
@@ -23,6 +29,7 @@ class StochasticEnvironment:
 
 def curveWithPeakEquation(x, param1, param2, param3):
     return (param1 * np.log(x)) ** 2 - param2 * np.sin(x) - x ** 2 + param3 * x
+
 
 def generateRandomCurveWithPeak(minPrice, maxPrice, numPrices, rng):
     curve = np.zeros(numPrices)
@@ -42,8 +49,10 @@ def generateRandomCurveWithPeak(minPrice, maxPrice, numPrices, rng):
     curve = curve / np.max(curve)
     return curve
 
+
 def convexCurveEquation(x, param1, param2):
     return param1 * 2.71 ** (-x ** param2)
+
 
 def generateRandomConvexCurve(minPrice, maxPrice, numPrices, rng):
     curve = np.zeros(numPrices)
@@ -60,6 +69,7 @@ def generateRandomConvexCurve(minPrice, maxPrice, numPrices, rng):
     curve = curve - np.min(curve)
     curve = curve / np.max(curve)
     return curve
+
 
 def generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng):
     curve = np.zeros(numPrices)
@@ -78,7 +88,8 @@ def generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng):
 def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChanges, rng, plot):
     changePoints = rng.normal(T / numChanges, T / numChanges / 7, size=numChanges).astype(int)
     changePoints = changePoints * np.arange(numChanges)
-    changePoints = np.round(T * (changePoints - abs(min(changePoints))) / (max(changePoints) - abs(min(changePoints)))).astype(int)
+    changePoints = np.round(
+        T * (changePoints - abs(min(changePoints))) / (max(changePoints) - abs(min(changePoints)))).astype(int)
     sortedChangePoints = np.sort(changePoints)
 
     mu = np.zeros((T, numPrices))
@@ -106,7 +117,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
             randomValue = rng.random()
             if randomValue <= curveWithPeakProbability:
                 demandCurve = generateRandomCurveWithPeak(minPrice, maxPrice, numPrices, rng)
-            elif randomValue <= convexCurveProbability+curveWithPeakProbability:
+            elif randomValue <= convexCurveProbability + curveWithPeakProbability:
                 demandCurve = generateRandomConvexCurve(minPrice, maxPrice, numPrices, rng)
             else:
                 demandCurve = generateRandomDescendingCurve(minPrice, maxPrice, numPrices, rng)
@@ -115,7 +126,7 @@ def generateRandomChangingDemandCurve(minPrice, maxPrice, numPrices, T, numChang
                 changePointIndex += 1
                 changePoint = sortedChangePoints[changePointIndex]
             else:
-                changePoint = T+1
+                changePoint = T + 1
 
             if plot:
                 plt.plot(demandCurve)
@@ -133,9 +144,9 @@ class NonStationaryBernoulliEnvironment:
         self.cost = cost
         self.pricesArray = prices
         self.K = prices.size
-        self.mu, self.sortedChangePoints = generateRandomChangingDemandCurve(minPrice, maxPrice, self.K, T, numChanges, self.rng, plot)
+        self.mu, self.sortedChangePoints = generateRandomChangingDemandCurve(minPrice, maxPrice, self.K, T, numChanges,
+                                                                             self.rng, plot)
         self.reset()
-
 
     def round(self, price_t, nCustomers_t):
         nSales_t = self.rng.binomial(n=nCustomers_t, p=self.mu[self.t, np.where(self.pricesArray == price_t)])
@@ -147,11 +158,16 @@ class NonStationaryBernoulliEnvironment:
         self.rng.seed(self.seed)
         self.t = 0
 
+
 class RBFGaussianProcess:
-    def __init__(self, scale=1, reg=1e-2):
+    def __init__(self, nFeatures, scale=1, reg=1e-2):
+        self.nFeatures = nFeatures
         self.scale = scale
         self.reg = reg
-        self.k_xx_inv = None
+        self.k_xx_inv = np.array([]).reshape(0, 0)
+        self.x = np.array([]).reshape(0, nFeatures)
+        self.y = np.array([]).reshape(0, 1)
+        self.start = 1
 
     def rbf_kernel_incr_inv(self, B, C, D):
         temp = np.linalg.inv(D - C @ self.k_xx_inv @ B)
@@ -165,27 +181,18 @@ class RBFGaussianProcess:
         return res
 
     def rbf_kernel(self, a, b):
-        a_ = a.reshape(-1, 1)
-        b_ = b.reshape(-1, 1)
-        output = -1 * np.ones((a_.shape[0], b_.shape[0]))
-        for i in range(a_.shape[0]):
-            output[i, :] = np.power(a_[i] - b_, 2).ravel()
+        output = -1 * np.ones((a.shape[0], b.shape[0]))
+        for i in range(a.shape[0]):
+            output[i, :] = np.power(np.linalg.norm(a[i] - b, axis=1), 2)
         return np.exp(-self.scale * output)
 
     def fit(self, x=np.array([]), y=np.array([])):
         x, y = np.array(x), np.array(y)
-        if self.k_xx_inv is None:
-            self.y = y.reshape(-1, 1)
-            self.x = x.reshape(-1, 1)
-            k_xx = self.rbf_kernel(self.x, self.x) + self.reg * np.eye(self.x.shape[0])
-            self.k_xx_inv = np.linalg.inv(k_xx)
-        else:
-            B = self.rbf_kernel(self.x, x)
-            self.x = np.vstack((self.x, x))
-            self.y = np.vstack((self.y, y))
-            self.k_xx_inv = self.rbf_kernel_incr_inv(B, B.T, np.array([1 + self.reg]))
 
-        return self
+        B = self.rbf_kernel(self.x, x)
+        self.x = np.vstack((self.x, x))
+        self.y = np.vstack((self.y, y))
+        self.k_xx_inv = self.rbf_kernel_incr_inv(B, B.T, np.array([1 + self.reg]))
 
     def predict(self, x_predict):
         k = self.rbf_kernel(x_predict, self.x)
@@ -197,59 +204,106 @@ class RBFGaussianProcess:
 
 
 class GPUCBAgent:
-    def __init__(self, T, discretization, minPrice, maxPrice):
+    def __init__(self, T, discretization, minPrices, maxPrices):
         self.T = T
-        self.arms = np.linspace(minPrice, maxPrice, discretization)
-        self.gp = RBFGaussianProcess(scale=2).fit()
+        self.nFeatures = len(minPrices)
+        self.discretization = discretization
+        self.minPrices = minPrices
+        self.maxPrices = maxPrices
+
+        self.discretizedPrices = [np.linspace(minPrices[i], maxPrices[i], discretization) for i in range(self.nFeatures)]
+        self.arms = self.discretizedPrices[0]
+        for i in range(1, self.nFeatures):
+            self.arms = np.array(
+                [list(item) for item in list(itertools.product(self.arms, self.discretizedPrices[i]))])
+
+        self.gp = RBFGaussianProcess(self.nFeatures, scale=2)
         self.a_t = None
         self.action_hist = np.array([])
         self.reward_hist = np.array([])
-        self.mu_t = np.zeros(discretization)
-        self.sigma_t = np.zeros(discretization)
-        self.ucbs_t = np.zeros(discretization)
+        self.mu_t = np.zeros((discretization, discretization))
+        self.sigma_t = np.zeros((discretization, discretization))
+        self.ucbs_t = np.zeros((discretization, discretization))
         self.gamma = lambda t: np.log(t + 1) ** 2
         self.beta = lambda t: 1 + 0.5 * np.sqrt(2 * (self.gamma(t) + 1 + np.log(t)))
-        self.nPulls = np.zeros(discretization)
+        self.nPulls = np.zeros(self.arms.shape)
         self.t = 1
 
     def pull_arm(self):
         self.mu_t, self.sigma_t = self.gp.predict(self.arms)
         self.ucbs_t = self.mu_t + self.beta(self.t) * self.sigma_t
         self.a_t = np.argmax(self.ucbs_t)
+
+        """
+        ucbs_t = self.ucbs_t.reshape(self.discretization, self.discretization)
+
+        X = np.arange(self.minPrices[0], self.maxPrices[0],
+                      (self.maxPrices[0] - self.minPrices[0]) / self.discretization)
+        Y = np.arange(self.minPrices[1], self.maxPrices[1],
+                      (self.maxPrices[1] - self.minPrices[1]) / self.discretization)
+        X, Y = np.meshgrid(X, Y)
+
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        ax.plot_surface(X, Y, ucbs_t, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+        plt.show()
+        """
+
         return self.arms[self.a_t]
 
     def update(self, r_t, showPlot=False):
         self.nPulls[self.a_t] += 1
         self.action_hist = np.append(self.action_hist, self.arms[self.a_t])
         self.reward_hist = np.append(self.reward_hist, r_t)
-        self.gp = self.gp.fit(self.arms[self.a_t], r_t)
+        self.gp.fit(self.arms[self.a_t].reshape(1, self.nFeatures), r_t)
         self.t += 1
 
         if showPlot:
             mu, sigma = self.gp.predict(self.arms)
 
-            plt.plot(self.arms, mu)
-            plt.fill_between(self.arms, mu - sigma, mu + sigma, alpha=0.3)
-            plt.suptitle(f'Estimated Profit - {self.t + 1} samples')
-            plt.scatter(self.action_hist, self.reward_hist)
-            plt.show()
+            if self.nFeatures == 1:
+                plt.plot(mu)
+                plt.fill_between(mu - sigma, mu + sigma, alpha=0.3)
+                plt.suptitle(f'Estimated Profit - {self.t + 1} samples')
+                plt.scatter(self.action_hist, self.reward_hist)
+                plt.show()
+            elif self.nFeatures == 2:
+                mu = mu.reshape(self.discretization, self.discretization)
+
+                X = np.arange(self.minPrices[0], self.maxPrices[0], (self.maxPrices[0] - self.minPrices[0]) / self.discretization)
+                Y = np.arange(self.minPrices[1], self.maxPrices[1], (self.maxPrices[1] - self.minPrices[1]) / self.discretization)
+                X, Y = np.meshgrid(X, Y)
+
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                ax.plot_surface(X, Y, mu, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                plt.show()
+                plt.close()
 
     def getEstimatedRewardMean(self):
         return self.ucbs_t
 
 
 class GPTSAgent:
-    def __init__(self, T, discretization, minPrice, maxPrice):
+    def __init__(self, T, discretization, minPrices, maxPrices):
         self.T = T
-        self.arms = np.linspace(minPrice, maxPrice, discretization)
-        self.gp = RBFGaussianProcess(scale=2).fit()
+        self.nFeatures = len(minPrices)
+        self.discretization = discretization
+        self.minPrices = minPrices
+        self.maxPrices = maxPrices
+
+        self.discretizedPrices = [np.linspace(minPrices[i], maxPrices[i], discretization) for i in range(self.nFeatures)]
+        self.arms = self.discretizedPrices[0]
+        for i in range(1, self.nFeatures):
+            self.arms = np.array(
+                [list(item) for item in list(itertools.product(self.arms, self.discretizedPrices[i]))])
+
+        self.gp = RBFGaussianProcess(self.nFeatures, scale=2)
         self.a_t = None
         self.action_hist = np.array([])
         self.reward_hist = np.array([])
-        self.mu_t = np.zeros(discretization)
-        self.samples_t = np.zeros(discretization)
-        self.sigma_t = np.zeros(discretization)
-        self.nPulls = np.zeros(discretization)
+        self.mu_t = np.zeros((discretization, discretization))
+        self.sigma_t = np.zeros((discretization, discretization))
+        self.samples_t = np.zeros((discretization, discretization))
+        self.nPulls = np.zeros(self.arms.shape)
         self.t = 0
 
     def pull_arm(self):
@@ -262,23 +316,37 @@ class GPTSAgent:
         self.nPulls[self.a_t] += 1
         self.action_hist = np.append(self.action_hist, self.arms[self.a_t])
         self.reward_hist = np.append(self.reward_hist, r_t)
-        self.gp = self.gp.fit(self.arms[self.a_t], r_t)
+        self.gp.fit(self.arms[self.a_t].reshape(1, self.nFeatures), r_t)
         self.t += 1
 
         if showPlot:
             mu, sigma = self.gp.predict(self.arms)
 
-            plt.plot(self.arms, mu)
-            plt.fill_between(self.arms, mu - sigma, mu + sigma, alpha=0.3)
-            plt.suptitle(f'Estimated Profit - {self.t + 1} samples')
-            plt.scatter(self.action_hist, self.reward_hist)
-            plt.show()
+            if self.nFeatures == 1:
+                plt.plot(mu)
+                plt.fill_between(mu - sigma, mu + sigma, alpha=0.3)
+                plt.suptitle(f'Estimated Profit - {self.t + 1} samples')
+                plt.scatter(self.action_hist, self.reward_hist)
+                plt.show()
+            elif self.nFeatures == 2:
+                mu = mu.reshape(self.discretization, self.discretization)
+
+                X = np.arange(self.minPrices[0], self.maxPrices[0],
+                              (self.maxPrices[0] - self.minPrices[0]) / self.discretization)
+                Y = np.arange(self.minPrices[1], self.maxPrices[1],
+                              (self.maxPrices[1] - self.minPrices[1]) / self.discretization)
+                X, Y = np.meshgrid(X, Y)
+
+                fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+                ax.plot_surface(X, Y, mu, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                plt.show()
+                plt.close()
 
     def getEstimatedRewardMean(self):
         return self.samples_t
 
 
-class ClairvoyantAgent:
+class BestPriceAgent:
     def __init__(self, action, discretizedPrices, conversionProbability):
         self.action = action
         self.discretizedPrices = discretizedPrices
@@ -389,20 +457,19 @@ class CUSUMUCBAgent:
         self.counters = np.repeat(M, self.K)
         self.average_rewards = np.zeros(self.K)
         self.n_resets = np.zeros(self.K)
-        self.n_t = 0    # Total number of pulls
+        self.n_t = 0  # Total number of pulls
         self.t = 0
         self.resetTimesHistory = np.array([])
         self.pricesHistory = np.array([])
         self.ucbsHistory = np.zeros((self.T, self.K))
         self.ucbs = np.full(self.K, np.inf)
 
-
     def pull_arm(self):
         if (self.counters > 0).any():
             for a in np.arange(self.K):
                 if self.counters[a] > 0:
                     self.counters[a] -= 1
-                    if self.t <= self.M*self.K:
+                    if self.t <= self.M * self.K:
                         self.a_t = self.t % self.K
                     else:
                         self.a_t = a
@@ -412,7 +479,7 @@ class CUSUMUCBAgent:
                 self.ucbs = self.average_rewards + self.range * np.sqrt(np.log(self.n_t) / self.N_pulls)
                 self.a_t = np.argmax(self.ucbs)
             else:
-                self.a_t = np.random.choice(np.arange(self.K))    # Extra exploration
+                self.a_t = np.random.choice(np.arange(self.K))  # Extra exploration
 
         self.ucbsHistory[self.t, :] = self.ucbs
         self.pricesHistory = np.append(self.pricesHistory, self.discretizedPrices[self.a_t])
@@ -441,7 +508,8 @@ class CUSUMUCBAgent:
     def change_detection(self):
         # CUSUM CD sub-routine. This function returns 1 if there's evidence that the last pulled arm has its average reward changed
         u_0 = np.mean(self.all_rewards[self.a_t][:self.M])
-        sp, sm = (np.array(self.all_rewards[self.a_t][self.M:]) - u_0, u_0 - np.array(self.all_rewards[self.a_t][self.M:]))
+        sp, sm = (
+        np.array(self.all_rewards[self.a_t][self.M:]) - u_0, u_0 - np.array(self.all_rewards[self.a_t][self.M:]))
         gp, gm = 0, 0
         for sp_, sm_ in zip(sp, sm):
             gp, gm = max([0, gp + sp_]), max([0, gm + sm_])
