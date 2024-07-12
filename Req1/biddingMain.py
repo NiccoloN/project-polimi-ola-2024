@@ -73,9 +73,9 @@ def bidding(myValuation, othersValuation, T, numTrials, budget, showPlots, seed)
             ucbRegretArray[trial, :] = np.cumsum(clairvoyantUtilities - ucbUtilityHist)
 
             if showPlots:
-                plt.plot(highestBids, '.', label="Max Bids From Others")
-                plt.plot(mpBidHist, '.', label="MP Agent Bids")
-                plt.plot(ucbBidHist, '.', label="UCB Agent Bids")
+                plt.plot(highestBids, '.', markersize=2, label="Max Bids From Others")
+                plt.plot(mpBidHist, '.', markersize=2, label="MP Agent Bids")
+                plt.plot(ucbBidHist, '.', markersize=2, label="UCB Agent Bids")
                 plt.legend()
                 plt.xlabel('$t$')
                 plt.ylabel('$Bids$')

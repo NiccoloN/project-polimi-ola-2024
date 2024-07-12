@@ -11,12 +11,12 @@ def testAgent(agent, T, env, title):
     priceProbabilities = np.zeros((T, len(agentDiscretizedPrices)))
     for t in range(T):
         price_t = agent.pull_arm()
-        print("price at day " + str(t) + ": " + str(price_t))
+        #print("price at day " + str(t) + ": " + str(price_t))
         valuation_t = np.clip(agent.getEstimatedRewardMean()[np.where(agentDiscretizedPrices == price_t)], 0, price_t)[0]
-        print("valuation: " + str(valuation_t))
+        #print("valuation: " + str(valuation_t))
         nCustomers_t = biddingAdversarial(valuation_t, 1000, 1, 50, False, t)
         nCustomersArray[t] = nCustomers_t
-        print("nCustomers: " + str(nCustomers_t))
+        #print("nCustomers: " + str(nCustomers_t))
         demand_t, reward_t = env.round(price_t, nCustomers_t)
         if nCustomers_t == 0 or demand_t == 0:
             agent.update(0)
@@ -25,20 +25,20 @@ def testAgent(agent, T, env, title):
             agent.update(reward_t / nCustomers_t)
             agentRewards[t] = reward_t / nCustomers_t
         priceProbabilities[t, :] = agent.x_t
-        print("reward: " + str(agentRewards[t]))
-        print(" ")
+        #print("reward: " + str(agentRewards[t]))
+        #print(" ")
 
     # Clairvoyant
     clairvoyantPrice, clairvoyantRewards = getAdversarialClairvoyant(agentDiscretizedPrices, T, env, nCustomersArray)
 
-    plt.plot(np.arange(T), agentRewards, ".", label="Agent rewards")
-    plt.plot(np.arange(T), clairvoyantRewards, ".", label="Clairvoyant rewards")
+    plt.plot(np.arange(T), agentRewards, ".", markersize=2, label="Agent rewards")
+    plt.plot(np.arange(T), clairvoyantRewards, ".", markersize=2, label="Clairvoyant rewards")
     plt.title(title)
     plt.legend()
     plt.show()
 
     for i, price in enumerate(agentDiscretizedPrices):
-        plt.plot(np.arange(T), priceProbabilities[:, i], ".", label="Price " + str(price))
+        plt.plot(np.arange(T), priceProbabilities[:, i], ".", markersize=2, label="Price " + str(price))
     plt.title('price probabilities')
     plt.legend()
     plt.show()
@@ -56,9 +56,9 @@ if __name__ == '__main__':
     priceRange = maxPrice - minPrice
     rewardRange = priceRange/10*4
 
-    T = 100
+    T = 200
     numDemandChanges = T-1
-    numTrials = 1
+    numTrials = 10
 
     # EXP3 agent parameters
     discretization = np.floor(1 / ((T/10) ** (-1 / 3)) + 1)
@@ -85,7 +85,7 @@ if __name__ == '__main__':
         print("exp3 " + str(trial + 1))
 
         # Price history of EXP3
-        plt.plot(np.arange(T), exp3Agent.pricesHistory, ".", label="Agent Prices")
+        plt.plot(np.arange(T), exp3Agent.pricesHistory, ".", markersize=2, label="Agent Prices")
         plt.plot(np.arange(T), np.repeat(clairvoyantPrice, T), label="Clairvoyant Prices")
         plt.title("EXP3 agent prices, trial " + str(trial))
         plt.legend()
