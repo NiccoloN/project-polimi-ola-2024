@@ -1,7 +1,7 @@
-import matplotlib.pyplot as plt
-
 from pricing import *
 import numpy as np
+import random
+
 
 def testEnv(env, numTests, discretizedPrices):
     profit = np.zeros((numTests, len(discretizedPrices)))
@@ -11,6 +11,7 @@ def testEnv(env, numTests, discretizedPrices):
             profit[n, i] = profitTemp[0]
     profitMean = profit.mean(axis=0)
     return profitMean
+
 
 def testAgent(env, agent, T, specificClairvoyantRewards, generalClairvoyantRewards, nCustomers, title):
     env.reset()
@@ -34,6 +35,7 @@ def testAgent(env, agent, T, specificClairvoyantRewards, generalClairvoyantRewar
     '''
     return np.cumsum(specificClairvoyantRewards - agentRewards), np.cumsum(generalClairvoyantRewards - agentRewards)
 
+
 def getClairvoyantRewards(agentDiscetizedPrices, env):
     discretizedMuInd = np.linspace(0, env.K-1, agentDiscetizedPrices.size+2)[1:-1].astype(int)
     mu = env.mu[:, discretizedMuInd]
@@ -45,9 +47,10 @@ def getClairvoyantRewards(agentDiscetizedPrices, env):
 
 
 if __name__ == '__main__':
-    envSeed = 50
     np.random.seed(1)
     random.seed(1)
+    envSeed = 50
+
     cost = 0.2
     minPrice = cost
     maxPrice = 1
@@ -55,7 +58,7 @@ if __name__ == '__main__':
     priceRange = maxPrice - minPrice
     rewardRange = priceRange/10
 
-    T = 5000
+    T = 1000
     numDemandChanges = 5
     numTrials = 1
 
@@ -103,11 +106,12 @@ if __name__ == '__main__':
     for trial in range(numTrials):
         np.random.seed(trial)
         random.seed(trial)
+
         # UCB1 Agent for comparison
+        print("UCB1 trial " + str(trial + 1))
         ucb1Agent = SWUCBAgent(ucb1DiscretizedPrices, T, T, range=rewardRange)
         ucb1ClairvoyantRewards, ucb1ClairvoyantPrices = getClairvoyantRewards(ucb1DiscretizedPrices, env)
         ucb1Regret[trial, :], ucb1GeneralRegret[trial, :] = testAgent(env, ucb1Agent, T, ucb1ClairvoyantRewards, generalClairvoyantRewards, nCustomers, "UCB1 rewards")
-        print("ucb1 " + str(trial + 1))
         '''
         # Price history of UCB1
         plt.plot(np.arange(T), ucb1Agent.pricesHistory, ".", label="Agent Prices")
@@ -134,11 +138,12 @@ if __name__ == '__main__':
         plt.title("UCB1 regret")
         plt.show()
         '''
+
         # SW UCB Agent
+        print("SWUCB trial " + str(trial + 1))
         swUcbAgent = SWUCBAgent(swDiscretizedPrices, T, W, range=rewardRange)
         swClairvoyantRewards, swClairvoyantPrices = getClairvoyantRewards(swDiscretizedPrices, env)
         swUcbRegret[trial, :], swUcbGeneralRegret[trial, :] = testAgent(env, swUcbAgent, T, swClairvoyantRewards, generalClairvoyantRewards, nCustomers, "SW UCB rewards")
-        print("swUcb " + str(trial + 1))
         '''
         # Price history of SW UCB
         plt.plot(np.arange(T), swUcbAgent.pricesHistory, ".", label="Agent Prices")
@@ -167,11 +172,12 @@ if __name__ == '__main__':
         plt.title("SW UCB regret, trial = " + str(trial))
         plt.show()
         '''
+
         # CumSum UCB Agent
+        print("CUMSUM trial " + str(trial + 1))
         cumSumUcbAgent = CUSUMUCBAgent(cumSumDiscretizedPrices, T, M, h, range=rewardRange)
         cumSumClairvoyantRewards, cumSumClairvoyantPrices = getClairvoyantRewards(cumSumDiscretizedPrices, env)
         cumSumUcbRegret[trial, :], cumSumUcbGeneralRegret[trial, :] = testAgent(env, cumSumUcbAgent, T, cumSumClairvoyantRewards, generalClairvoyantRewards, nCustomers, "CUMSUM UCB rewards")
-        print("cumSumUcb " + str(trial + 1))
         '''
         # Price history of CUMSUM UCB
         plt.plot(np.arange(T), cumSumUcbAgent.pricesHistory, ".", label="Agent Prices")
@@ -203,6 +209,7 @@ if __name__ == '__main__':
         plt.title("CUMSUM UCB regret")
         plt.show()
         '''
+
     ucb1SpecificAvRegret = ucb1Regret.mean(axis=0)
     ucb1SpecRegretStd = ucb1Regret.std(axis=0)
     ucb1GeneralAvRegret = ucb1GeneralRegret.mean(axis=0)
@@ -284,6 +291,3 @@ if __name__ == '__main__':
     plt.ylabel("Regret")
     plt.legend()
     plt.show()
-
-
-

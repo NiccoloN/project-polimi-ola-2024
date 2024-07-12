@@ -424,8 +424,7 @@ class SWUCBAgent:
         else:
             nPulls_w = self.W - np.isnan(self.rewardsCache).sum(axis=0)
             avgRewards_w = np.nanmean(self.rewardsCache, axis=0)
-            ucbs = avgRewards_w + self.range * np.sqrt(
-                2 * np.log(self.W) / nPulls_w)  # there's a typo in the slides, log(T) -> log(W)
+            ucbs = avgRewards_w + self.range * np.sqrt(2 * np.log(self.W) / nPulls_w)
             self.a_t = np.argmax(ucbs)
             self.ucbsHistory[self.t, :] = ucbs
         self.pricesHistory[self.t] = self.discretizedPrices[self.a_t]

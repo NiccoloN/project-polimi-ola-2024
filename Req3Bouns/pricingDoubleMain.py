@@ -9,7 +9,7 @@ def testAgent(env, agent, T, expectedClairvoyantRewards):
         prices_t = agent.pull_arm()
         print("Prices at day " + str(t) + ": " + str(prices_t))
         demand_t, reward_t = env.round(prices_t, nCustomers)
-        agent.update(reward_t / nCustomers, False)
+        agent.update(reward_t / nCustomers, True)
         agentRewards[t] = reward_t
 
     return np.cumsum(expectedClairvoyantRewards - agentRewards)
@@ -33,7 +33,7 @@ if __name__ == '__main__':
     conversionProbabilityP2 = lambda p1, p2: conversionProbabilityEq(p2, p1)
     reward_function = lambda prices, n_sales: np.sum((prices - costs) * n_sales)
 
-    T = 100
+    T = 60
     numTrials = 1
     env = StochasticEnvironment([conversionProbabilityP1, conversionProbabilityP2], costs, envSeed)
 
@@ -60,22 +60,22 @@ if __name__ == '__main__':
 
     ucbRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
-        print("GPUCB trial " + str(trial + 1))
+        print("\nGPUCB trial " + str(trial + 1))
         ucbAgent = GPUCBAgent(T, discretization, minPrices, maxPrices)
         ucbRegretPerTrial[trial, :] = testAgent(env, ucbAgent, T, expectedClairvoyantRewards)
 
     tsRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
-        print("GPTS trial " + str(trial + 1))
+        print("\nGPTS trial " + str(trial + 1))
         tsAgent = GPTSAgent(T, discretization, minPrices, maxPrices)
         tsRegretPerTrial[trial, :] = testAgent(env, tsAgent, T, expectedClairvoyantRewards)
 
-    clairvoyantRegretPerTrial = np.zeros((numTrials, T))
+    """clairvoyantRegretPerTrial = np.zeros((numTrials, T))
     for trial in range(numTrials):
         print("Best prices agent " + str(trial + 1))
         clairvoyantAgent = BestPriceAgent(bestPrices, discretizedPrices, conversionProbability)
         clairvoyantRegretPerTrial[trial, :] = testAgent(env, clairvoyantAgent, T, expectedClairvoyantRewards)
-
+    """
     ucbAverageRegret = ucbRegretPerTrial.mean(axis=0)
     ucbRegretStd = ucbRegretPerTrial.std(axis=0)
 

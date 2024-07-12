@@ -16,15 +16,6 @@ def biddingAdversarial(myValuation, T, numTrials, B, showPlots, seed):
 
     m_t, advertisersBids = generateRandomChangingBids(T, nAdvertisers, rng)
 
-    '''
-    colors = cm.rainbow(np.linspace(0, 1, numChanges))
-    rng.shuffle(colors)
-    for i in range(numChanges):
-        xRange = np.arange(changingPoints[i], changingPoints[i+1])
-        plt.plot(xRange, m_t[changingPoints[i]:changingPoints[i+1]], 'o', color=colors[i], markersize=1)
-    plt.show()
-    '''
-
     expectedClairvoyantUtilities, expectedClairvoyantBids = getAdversarialNonTruthfulClairvoyant(T, possibleBids, m_t, myValuation, rho)
 
     eta = 1 / np.sqrt(T)
@@ -38,7 +29,6 @@ def biddingAdversarial(myValuation, T, numTrials, B, showPlots, seed):
     totalWins = 0
 
     for u in range(T):
-        # interaction
         myBid = agent.bid()
         bids = np.append(myBid, advertisersBids[:, u].ravel())
         winners, paymentsPerClick = auction.round(bids=bids)
@@ -52,71 +42,37 @@ def biddingAdversarial(myValuation, T, numTrials, B, showPlots, seed):
         totalWins += myWin
 
     if showPlots:
-        # %%
-        '''
-        for i in range(numChanges):
-            xRange = np.arange(changingPoints[i], changingPoints[i+1])
-            plt.plot(xRange, changing_m_t[i], 'o', color=colors[i], markersize=1)
-            plt.plot(xRange, changing_expectedClairvoyantBids[i], color='black')
-        plt.title('Expected Maximum Bids and (Changing) Clairvoyant Bid')
-        plt.xlabel('$t$')
-        plt.ylabel('$m_t$')
-        plt.show()
-        '''
-        # %%
         plt.plot(m_t, 'o', markersize=1)
         plt.plot(expectedClairvoyantBids)
-        plt.title('Expected maximum Bids and Clairvoyant Bid')
+        plt.title('Maximum Bids and Clairvoyant Bid')
         plt.xlabel('$t$')
         plt.ylabel('$m_t$')
         plt.show()
 
         print(f'Total Number of Wins: {totalWins}')
-        # %%
-        plt.plot(myBids, 'o', markersize=1)
-        plt.xlabel('$t$')
-        plt.ylabel('$b_t$')
-        plt.title('Chosen Bids')
-        plt.show()
-        # %%
+
         plt.plot(myBids, 'o', markersize=1)
         plt.plot(expectedClairvoyantBids)
         plt.xlabel('$t$')
-        plt.ylabel('$b_t$')
+        plt.ylabel('$Bid$')
         plt.title('Chosen Bids and Clairvoyants bids')
-        '''
-        for i in range(numChanges):
-            xRange = np.arange(changingPoints[i], changingPoints[i+1])
-            plt.plot(xRange, changing_expectedClairvoyantBids[i], color='black')
-        '''
         plt.show()
-        # %%
+
         cumulativePayments = np.cumsum(myPayments)
         plt.plot(cumulativePayments)
         plt.xlabel('$t$')
-        plt.ylabel('$\sum c_t$')
+        plt.ylabel('Payment')
         plt.axhline(B, color='red', label='Budget')
         plt.legend()
         plt.title('Cumulative Payments of Multiplicative Pacing')
         plt.show()
-        # %%
+
         cumulativeRegret = np.cumsum(expectedClairvoyantUtilities - utilities)
         plt.plot(cumulativeRegret)
         plt.xlabel('$t$')
-        plt.ylabel('$\sum R_t$')
+        plt.ylabel('Regret')
         plt.title('Cumulative Regret of Multiplicative Pacing')
         plt.show()
-        # %%
-        '''
-        flattenedCECU = [item for sublist in changing_expectedClairvoyantUtilities for item in sublist]
-        CECU = np.array(flattenedCECU).ravel()
-        changingCumulativeRegret = np.cumsum(CECU - utilities)
-        plt.plot(changingCumulativeRegret)
-        plt.xlabel('$t$')
-        plt.ylabel('$\sum R_t$')
-        plt.title('Cumulative Regret of Multiplicative Pacing (Changing Clairvoyant) ')
-        plt.show()
-        '''
     return totalWins
 
 

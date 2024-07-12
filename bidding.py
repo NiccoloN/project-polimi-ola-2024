@@ -5,7 +5,6 @@ from scipy import optimize
 import math
 
 
-
 class Auction:
     def __init__(self, *args, **kwargs):
         pass
@@ -70,7 +69,7 @@ class MultiplicativePacingAgent:
         self.totWins += win
         self.utilityHist = np.append(self.utilityHist, utility)
         self.budgetHist = np.append(self.budgetHist, self.budget)
-        if self.updateRho:
+        if self.updateRho and self.T - self.t != 0:
             self.rho = self.budget / (self.T - self.t)
 
     def returnHistory(self):
@@ -144,7 +143,7 @@ class UCBAgent:
         res = optimize.linprog(c, A_ub=A_ub, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=(0, 1))
         self.gamma = res.x.T
 
-        if self.updateRho:
+        if self.updateRho and self.T - self.t != 0:
             self.rho = self.budget / (self.T - self.t)
 
         self.t += 1
@@ -252,7 +251,7 @@ class FFMultiplicativePacingAgent:
         # update budget
         self.t += 1
         self.budget -= c_t
-        if self.updateRho:
+        if self.updateRho and self.T - self.t != 0:
             self.rho = self.budget / (self.T - self.t)
 
 

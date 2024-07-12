@@ -117,7 +117,7 @@ def biddingComparison(nSlots):
     plt.xlabel('$t$')
     plt.ylabel('$Bids$')
     plt.ylim(0, 1)
-    plt.title('Bids history (' + str(nSlots) + ' slots)')
+    plt.title('Bids History (' + str(nSlots) + ' slots)')
     plt.show()
 
     plt.plot(m_t, 'o', markersize=1, label="Max Bids")
@@ -125,7 +125,7 @@ def biddingComparison(nSlots):
     plt.xlabel('$t$')
     plt.ylabel('$Bids$')
     plt.ylim(0, 1)
-    plt.title('Max Bids')
+    plt.title('Max Bids (' + str(nSlots) + ' slots)')
     plt.show()
 
 
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     T = nUsers
     rho = B/T
 
-    slots = [1, 2]
+    slots = [1, 2, 3]
 
     for nSlots in slots:
         biddingComparison(nSlots)
