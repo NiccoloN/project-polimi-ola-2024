@@ -9,7 +9,7 @@ def testAgent(env, agent, T, expectedClairvoyantRewards):
         prices_t = agent.pull_arm()
         print("Prices at day " + str(t) + ": " + str(prices_t))
         demand_t, reward_t = env.round(prices_t, nCustomers)
-        agent.update(reward_t / nCustomers, True)
+        agent.update(reward_t / nCustomers, False)
         agentRewards[t] = reward_t
 
     return np.cumsum(expectedClairvoyantRewards - agentRewards)
