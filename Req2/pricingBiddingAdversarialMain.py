@@ -39,6 +39,8 @@ def testAgent(agent, T, env, title):
     for i, price in enumerate(agentDiscretizedPrices):
         plt.plot(np.arange(T), priceProbabilities[:, i], ".", label="Price " + str(price))
     plt.title('EXP3 Price Probabilities (trial ' + str(trial+1) + ')')
+    plt.xlabel("$t$")
+    plt.ylabel("Price probability")
     plt.legend()
     plt.show()
     return np.cumsum(clairvoyantRewards - agentRewards), clairvoyantPrice
@@ -57,7 +59,7 @@ if __name__ == '__main__':
 
     T = 100
     numDemandChanges = T-1
-    numTrials = 10
+    numTrials = 5
 
     # EXP3 agent parameters
     discretization = np.floor(1 / ((T/10) ** (-1 / 3)) + 1)
@@ -88,6 +90,8 @@ if __name__ == '__main__':
         plt.plot(np.arange(T), exp3Agent.pricesHistory, ".", label="EXP3 Prices")
         plt.plot(np.arange(T), np.repeat(clairvoyantPrice, T), label="Clairvoyant Prices")
         plt.title("EXP3 Prices (trial " + str(trial+1) + ")")
+        plt.xlabel("$t$")
+        plt.ylabel("Price")
         plt.legend()
         plt.show()
 

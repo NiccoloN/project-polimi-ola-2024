@@ -276,7 +276,7 @@ class GPUCBAgent:
                 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
                 ax.plot_surface(X, Y, mu, cmap=cm.coolwarm, linewidth=0, antialiased=False)
                 plt.show()
-                plt.close()
+                # plt.savefig("curve_" + str(self.t-1) + ".png")
 
     def getEstimatedRewardMean(self):
         return self.ucbs_t
@@ -401,7 +401,10 @@ def getAdversarialClairvoyant(discretizedPrices, T, env, nCustomersArray):
 
     env.reset()
     bestPriceIndex = np.argmax(rewards.sum(axis=1))
-    return discretizedPrices[bestPriceIndex], rewards[bestPriceIndex, :] / nCustomersArray
+    bestPriceRewards = rewards[bestPriceIndex, :]
+    nonZeroRewardIndices = np.where(bestPriceRewards != 0)
+    bestPriceRewards[nonZeroRewardIndices] = bestPriceRewards[nonZeroRewardIndices] / nCustomersArray[nonZeroRewardIndices]
+    return discretizedPrices[bestPriceIndex], bestPriceRewards
 
 
 class SWUCBAgent:
