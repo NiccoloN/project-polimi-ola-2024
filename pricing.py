@@ -388,7 +388,7 @@ class EXP3Agent:
         self.t += 1
 
     def getEstimatedRewardMean(self):
-        return self.weights
+        return self.x_t
 
 
 def getAdversarialClairvoyant(discretizedPrices, T, env, nCustomersArray):

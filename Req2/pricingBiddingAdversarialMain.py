@@ -12,7 +12,7 @@ def testAgent(agent, T, env, title):
     for t in range(T):
         price_t = agent.pull_arm()
         print("price at day " + str(t) + ": " + str(price_t))
-        valuation_t = np.clip(agent.getEstimatedRewardMean()[np.where(agentDiscretizedPrices == price_t)], 0, price_t)[0]
+        valuation_t = np.clip(agent.getEstimatedRewardMean()[np.where(agentDiscretizedPrices == price_t)] * price_t, 0, price_t)[0]
         print("Valuation: " + str(valuation_t))
         nCustomers_t = biddingAdversarial(valuation_t, 1000, 1, 50, False, t)
         nCustomersArray[t] = nCustomers_t
