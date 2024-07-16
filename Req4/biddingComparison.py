@@ -8,7 +8,7 @@ def biddingComparison(nSlots):
     eta = 1 / np.sqrt(nUsers)
     gmpAgent = FFMultiplicativePacingAgent(possibleBids, myValuation, B, T, eta, True)
     mpAgent = MultiplicativePacingAgent(myValuation, B, T, True)
-    ucbAgent = UCBAgent(B, possibleBids, T, 0.016, True)
+    ucbAgent = UCBAgent(B, possibleBids, T, 0.002, True)
 
     otherAgents = []
     for i in range(nAdvertisers - 3):
@@ -17,7 +17,7 @@ def biddingComparison(nSlots):
         elif i % 3 == 1:
             otherAgents.append(MultiplicativePacingAgent(myValuation, B, T, True))
         else:
-            otherAgents.append(UCBAgent(B, possibleBids, T, 0.016, True))
+            otherAgents.append(UCBAgent(B, possibleBids, T, 0.002, True))
 
     auction = GeneralizedFirstPriceAuction(nSlots, np.ones(nAdvertisers))
 
@@ -134,10 +134,10 @@ if __name__ == '__main__':
     np.random.seed(1)
 
     nAdvertisers = 9
-    minBid = 0.2
-    maxBid = 1
     myValuation = 0.8
-    possibleBids = np.arange(0, 1, 0.01)
+    minBid = 0.01
+    maxBid = myValuation
+    possibleBids = np.arange(minBid, maxBid, minBid)
     numBids = len(possibleBids)
     nUsers = 1000
     B = nUsers/8
